@@ -54,5 +54,6 @@ mobile_app/android/local.properties
 .idea/
 *.sublime-project
 *.sublime-workspace
+*.iml
 .DS_Store
 Thumbs.db
