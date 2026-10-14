@@ -42,67 +42,40 @@ class RoleSelectScreen extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Container(
-                    width: 54,
-                    height: 54,
+                    width: 56,
+                    height: 56,
                     decoration: BoxDecoration(
-                      gradient: const LinearGradient(
-                        colors: [Color(0xFFFC8019), Color(0xFFE23744)],
-                        begin: Alignment.topLeft,
-                        end: Alignment.bottomRight,
-                      ),
-                      borderRadius: BorderRadius.circular(20),
+                      borderRadius: BorderRadius.circular(16),
                       boxShadow: [
                         BoxShadow(
-                          color: const Color(0xFFFC8019).withOpacity(0.4),
+                          color: const Color(0xFFFC8019).withOpacity(0.35),
                           blurRadius: 16,
                           offset: const Offset(0, 4),
                         ),
                       ],
                     ),
-                    child: const Center(
-                      child: Text(
-                        '🛵',
-                        style: TextStyle(fontSize: 26),
-                      ),
+                    clipBehavior: Clip.antiAlias,
+                    child: Image.asset(
+                      'assets/images/logo.png',
+                      fit: BoxFit.cover,
                     ),
                   ),
                   const SizedBox(width: 14),
-                  Column(
+                  const Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Row(
-                        children: [
-                          const Text(
-                            'RouteWise',
-                            style: TextStyle(
-                              fontSize: 22,
-                              fontWeight: FontWeight.w900,
-                              color: Colors.white,
-                              letterSpacing: -0.5,
-                            ),
-                          ),
-                          const SizedBox(width: 6),
-                          Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                            decoration: BoxDecoration(
-                              color: const Color(0xFFFC8019).withOpacity(0.2),
-                              borderRadius: BorderRadius.circular(6),
-                              border: Border.all(color: const Color(0xFFFC8019)),
-                            ),
-                            child: const Text(
-                              'AI',
-                              style: TextStyle(
-                                fontSize: 10,
-                                fontWeight: FontWeight.bold,
-                                color: Color(0xFFFC8019),
-                              ),
-                            ),
-                          ),
-                        ],
+                      Text(
+                        'RouteWise',
+                        style: TextStyle(
+                          fontSize: 24,
+                          fontWeight: FontWeight.w900,
+                          color: Colors.white,
+                          letterSpacing: -0.5,
+                        ),
                       ),
-                      const Text(
-                        'Swiggy & Zomato Real-Time Engine',
-                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                      Text(
+                        'Real Time Engine',
+                        style: TextStyle(fontSize: 12, color: Colors.grey, letterSpacing: 0.5),
                       ),
                     ],
                   ),
