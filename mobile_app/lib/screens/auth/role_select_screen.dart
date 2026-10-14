@@ -254,7 +254,10 @@ class _RoleSelectScreenState extends State<RoleSelectScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Row(
+                              Wrap(
+                                crossAxisAlignment: WrapCrossAlignment.center,
+                                spacing: 6,
+                                runSpacing: 4,
                                 children: [
                                   const Text(
                                     '📱 On-Device Hub Server',
@@ -264,7 +267,6 @@ class _RoleSelectScreenState extends State<RoleSelectScreen> {
                                       color: Colors.white,
                                     ),
                                   ),
-                                  const SizedBox(width: 6),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                                     decoration: BoxDecoration(
@@ -424,7 +426,10 @@ class _RoleSelectScreenState extends State<RoleSelectScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Row(
+                  Wrap(
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    spacing: 8,
+                    runSpacing: 4,
                     children: [
                       Text(
                         title,
@@ -434,13 +439,12 @@ class _RoleSelectScreenState extends State<RoleSelectScreen> {
                           color: Colors.white,
                         ),
                       ),
-                      const SizedBox(width: 8),
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                         decoration: BoxDecoration(
-                          color: badgeColor.withOpacity(0.18),
+                          color: badgeColor.withValues(alpha: 0.18),
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: badgeColor.withOpacity(0.4)),
+                          border: Border.all(color: badgeColor.withValues(alpha: 0.4)),
                         ),
                         child: Text(
                           badge,
