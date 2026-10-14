@@ -209,7 +209,7 @@ class _DriverScreenState extends State<DriverScreen> {
               ),
               Switch(
                 value: _isOnline,
-                activeColor: Colors.green,
+                activeThumbColor: Colors.green,
                 onChanged: (val) => setState(() => _isOnline = val),
               ),
             ],
@@ -261,7 +261,7 @@ class _DriverScreenState extends State<DriverScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Row(
-                          mainAxisAlignment: MainAxisAlignment.between,
+                          mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
                             Row(
                               children: [
@@ -354,7 +354,7 @@ class _DriverScreenState extends State<DriverScreen> {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Row(
-                            mainAxisAlignment: MainAxisAlignment.between,
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
                             children: [
                               Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,

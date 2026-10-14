@@ -392,7 +392,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Row(
-                                      mainAxisAlignment: MainAxisAlignment.between,
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                       children: [
                                         Text(
                                           rest.name,
@@ -459,7 +459,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                     const Icon(Icons.shopping_bag_outlined, color: Colors.white),
                     const SizedBox(width: 8),
                     Text(
-                      'View Order ($totalItems items) & Track Live',
+                      'View Order (${_activeRestaurant != null ? "${_activeRestaurant!.name} • " : ""}$totalItems items) & Track',
                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                     ),
                   ],
@@ -478,7 +478,7 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
         selected: isSelected,
         label: Text('$emoji $label'),
         labelStyle: TextStyle(
-          color: isSelected ? Colors.white : Colors.black89,
+          color: isSelected ? Colors.white : Colors.black87,
           fontSize: 11,
           fontWeight: isSelected ? FontWeight.bold : FontWeight.normal,
         ),

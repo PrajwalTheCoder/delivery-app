@@ -85,7 +85,7 @@ class _KitchenScreenState extends State<KitchenScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Row(
-                              mainAxisAlignment: MainAxisAlignment.between,
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
                               children: [
                                 Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -136,7 +136,7 @@ class _KitchenScreenState extends State<KitchenScreen> {
                               child: Column(
                                 children: [
                                   Row(
-                                    mainAxisAlignment: MainAxisAlignment.between,
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       const Text('2 × Dum Gosht Biryani (Mutton)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                                       Text('₹998', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
@@ -144,7 +144,7 @@ class _KitchenScreenState extends State<KitchenScreen> {
                                   ),
                                   const SizedBox(height: 8),
                                   Row(
-                                    mainAxisAlignment: MainAxisAlignment.between,
+                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                                     children: [
                                       const Text('1 × Gulab Jamun with Rabdi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
                                       Text('₹149', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),

@@ -256,7 +256,7 @@ class _CustomerTrackingScreenState extends State<CustomerTrackingScreen> {
                 children: [
                   // Status Header & OTP Box
                   Row(
-                    mainAxisAlignment: MainAxisAlignment.between,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
                       Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
