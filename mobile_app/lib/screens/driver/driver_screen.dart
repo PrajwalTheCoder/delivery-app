@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -15,15 +16,20 @@ class DriverScreen extends StatefulWidget {
 class _DriverScreenState extends State<DriverScreen> {
   final DeliveryService _service = DeliveryService();
 
-  FoodOrder? _activeOrder;
+  late FoodOrder? _activeOrder = _service.currentOrder;
   bool _isOnline = true;
-  bool _loading = true;
+  bool _loading = false;
 
   // Real Phone GPS Streaming State
   bool _gpsActive = false;
   StreamSubscription<Position>? _positionStream;
   Position? _currentPosition;
   String? _gpsError;
+
+  // Route Simulation / Nudge State for indoor testing
+  int _simStep = 0;
+  bool _isAutoDriving = false;
+  Timer? _autoDriveTimer;
 
   // OTP Verification
   final TextEditingController _otpController = TextEditingController();
@@ -42,13 +48,13 @@ class _DriverScreenState extends State<DriverScreen> {
   @override
   void dispose() {
     _positionStream?.cancel();
+    _autoDriveTimer?.cancel();
     _orderSub?.cancel();
     _otpController.dispose();
     super.dispose();
   }
 
   Future<void> _fetchOrder() async {
-    setState(() => _loading = true);
     final order = await _service.getActiveOrder();
     if (mounted) {
       setState(() {
@@ -56,6 +62,84 @@ class _DriverScreenState extends State<DriverScreen> {
         _loading = false;
       });
     }
+  }
+
+  // Nudge Driver Forward Along Road (for indoor testing)
+  void _stepForwardAlongRoute() {
+    if (_activeOrder == null || _activeOrder!.roadGeometry.isEmpty) return;
+    final geom = _activeOrder!.roadGeometry;
+    if (_simStep < geom.length - 1) {
+      _simStep++;
+    } else {
+      _simStep = 0;
+    }
+    final curr = geom[_simStep];
+    final prev = _simStep > 0 ? geom[_simStep - 1] : geom[0];
+
+    // Compute heading
+    final dLon = (curr[1] - prev[1]) * (pi / 180);
+    final y = sin(dLon) * cos(curr[0] * (pi / 180));
+    final x = cos(prev[0] * (pi / 180)) * sin(curr[0] * (pi / 180)) -
+        sin(prev[0] * (pi / 180)) * cos(curr[0] * (pi / 180)) * cos(dLon);
+    double bearing = (atan2(y, x) * 180 / pi + 360) % 360;
+
+    _service.updateDriverGpsLocation(
+      orderId: _activeOrder!.id,
+      latitude: curr[0],
+      longitude: curr[1],
+      heading: bearing,
+      speed: 26.0,
+    );
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        duration: const Duration(milliseconds: 1400),
+        backgroundColor: const Color(0xFFFC8019),
+        content: Text('📍 Nudged driver: (${curr[0].toStringAsFixed(4)}, ${curr[1].toStringAsFixed(4)}) • Waypoint $_simStep/${geom.length}'),
+      ),
+    );
+  }
+
+  // Toggle Auto Driving Route Simulation
+  void _toggleAutoDrive() {
+    if (_isAutoDriving) {
+      _autoDriveTimer?.cancel();
+      setState(() => _isAutoDriving = false);
+      return;
+    }
+
+    if (_activeOrder == null || _activeOrder!.roadGeometry.isEmpty) return;
+    setState(() => _isAutoDriving = true);
+
+    _autoDriveTimer = Timer.periodic(const Duration(milliseconds: 2000), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
+      final geom = _activeOrder!.roadGeometry;
+      if (_simStep >= geom.length - 1) {
+        t.cancel();
+        setState(() => _isAutoDriving = false);
+        return;
+      }
+      _simStep++;
+      final curr = geom[_simStep];
+      final prev = geom[_simStep - 1];
+
+      final dLon = (curr[1] - prev[1]) * (pi / 180);
+      final y = sin(dLon) * cos(curr[0] * (pi / 180));
+      final x = cos(prev[0] * (pi / 180)) * sin(curr[0] * (pi / 180)) -
+          sin(prev[0] * (pi / 180)) * cos(curr[0] * (pi / 180)) * cos(dLon);
+      double bearing = (atan2(y, x) * 180 / pi + 360) % 360;
+
+      _service.updateDriverGpsLocation(
+        orderId: _activeOrder!.id,
+        latitude: curr[0],
+        longitude: curr[1],
+        heading: bearing,
+        speed: 28.0,
+      );
+    });
   }
 
   // Toggle Live Smartphone GPS Broadcasting
@@ -340,6 +424,39 @@ class _DriverScreenState extends State<DriverScreen> {
                             style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
                           ),
                         ),
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  side: BorderSide(color: Colors.white.withOpacity(0.2)),
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                onPressed: _stepForwardAlongRoute,
+                                icon: const Icon(Icons.directions_walk, size: 16, color: Color(0xFFFC8019)),
+                                label: const Text('Nudge +40m', style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: Colors.white,
+                                  side: BorderSide(color: _isAutoDriving ? Colors.orange : Colors.white.withOpacity(0.2)),
+                                  backgroundColor: _isAutoDriving ? Colors.orange.withOpacity(0.2) : Colors.transparent,
+                                  padding: const EdgeInsets.symmetric(vertical: 10),
+                                  shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+                                ),
+                                onPressed: _toggleAutoDrive,
+                                icon: Icon(_isAutoDriving ? Icons.pause : Icons.play_arrow, size: 16, color: Colors.greenAccent),
+                                label: Text(_isAutoDriving ? 'Pause Drive' : 'Auto-Drive', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.bold)),
+                              ),
+                            ),
+                          ],
+                        ),
                       ],
                     ),
                   ),
@@ -494,11 +611,38 @@ class _DriverScreenState extends State<DriverScreen> {
 
                           if (_activeOrder!.status == 'out_for_delivery') ...[
                             const SizedBox(height: 8),
-                            const Text(
-                              'Doorstep Delivery Verification',
-                              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                            Row(
+                              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                              children: [
+                                const Text(
+                                  'Doorstep Delivery Verification',
+                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
+                                ),
+                                Container(
+                                  padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                  decoration: BoxDecoration(
+                                    color: _activeOrder!.isRealMode ? Colors.green.withOpacity(0.2) : Colors.blue.withOpacity(0.2),
+                                    borderRadius: BorderRadius.circular(6),
+                                  ),
+                                  child: Text(
+                                    _activeOrder!.isRealMode ? '⚡ REAL MODE' : '🎮 DEMO (4829)',
+                                    style: TextStyle(
+                                      color: _activeOrder!.isRealMode ? Colors.greenAccent : Colors.lightBlueAccent,
+                                      fontSize: 10,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ),
+                              ],
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 4),
+                            Text(
+                              _activeOrder!.isRealMode
+                                  ? 'Ask customer for their unique 4-digit OTP shown on their screen'
+                                  : 'Demo test mode: Customer OTP is 4829',
+                              style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
+                            ),
+                            const SizedBox(height: 8),
                             Row(
                               children: [
                                 Expanded(
@@ -531,6 +675,33 @@ class _DriverScreenState extends State<DriverScreen> {
                                       : const Text('Complete', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
                                 ),
                               ],
+                            ),
+                          ],
+
+                          if (_activeOrder!.status == 'delivered') ...[
+                            const SizedBox(height: 12),
+                            Container(
+                              padding: const EdgeInsets.all(14),
+                              decoration: BoxDecoration(
+                                color: Colors.green.withOpacity(0.15),
+                                borderRadius: BorderRadius.circular(14),
+                                border: Border.all(color: Colors.green),
+                              ),
+                              child: const Row(
+                                children: [
+                                  Icon(Icons.check_circle, color: Colors.greenAccent, size: 22),
+                                  SizedBox(width: 10),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      children: [
+                                        Text('Order Delivered Successfully!', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13)),
+                                        Text('Payout of ₹65 credited to your driver wallet.', style: TextStyle(color: Colors.white70, fontSize: 11)),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                           ],
                         ],

@@ -14,8 +14,8 @@ class CustomerHomeScreen extends StatefulWidget {
 
 class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   final DeliveryService _service = DeliveryService();
-  List<Restaurant> _restaurants = [];
-  bool _loading = true;
+  List<Restaurant> _restaurants = DeliveryService.defaultRestaurants;
+  bool _loading = false;
   String _selectedCategory = 'all';
 
   // Cart
@@ -41,12 +41,12 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   }
 
   Future<void> _loadRestaurants() async {
-    setState(() => _loading = true);
     final list = await _service.getRestaurants();
-    setState(() {
-      _restaurants = list;
-      _loading = false;
-    });
+    if (mounted) {
+      setState(() {
+        _restaurants = list;
+      });
+    }
   }
 
   void _showMenuModal(Restaurant restaurant) {
@@ -526,10 +526,22 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                             double customerLon = 73.07220;
                             String customerAddress = 'Flat 301, Sector 7, Kharghar';
 
+                            if (isRealMode && detectedPosition == null) {
+                              try {
+                                LocationPermission permission = await Geolocator.checkPermission();
+                                if (permission == LocationPermission.denied) {
+                                  permission = await Geolocator.requestPermission();
+                                }
+                                if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+                                  detectedPosition = await Geolocator.getCurrentPosition();
+                                }
+                              } catch (_) {}
+                            }
+
                             if (isRealMode && detectedPosition != null) {
                               customerLat = detectedPosition!.latitude;
                               customerLon = detectedPosition!.longitude;
-                              customerAddress = 'Current Phone Location (${customerLat.toStringAsFixed(4)}, ${customerLon.toStringAsFixed(4)})';
+                              customerAddress = 'Live GPS Location (${customerLat.toStringAsFixed(4)}, ${customerLon.toStringAsFixed(4)})';
                             }
 
                             final newOrder = await _service.createRealOrder(

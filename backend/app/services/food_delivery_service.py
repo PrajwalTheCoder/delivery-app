@@ -531,9 +531,9 @@ class FoodDeliveryService:
         taxes = int(item_total * 0.05)
         grand_total = item_total + delivery_fee + platform_fee + taxes
 
-        # Random 4-digit Delivery OTP (like Swiggy / Zomato)
-        delivery_otp = str(random.randint(1000, 9999))
-        order_id = f"ZOM-{int(time.time()) % 100000:05d}"
+        # Random 4-digit Delivery OTP (like Swiggy / Zomato) or client-specified
+        delivery_otp = str(order_data.get("delivery_otp") or order_data.get("otp") or random.randint(1000, 9999))
+        order_id = str(order_data.get("id") or order_data.get("order_id") or f"ZOM-{int(time.time()) % 100000:05d}")
 
         # Assign delivery rider near restaurant
         rider = random.choice(DELIVERY_RIDERS)
@@ -756,7 +756,7 @@ class FoodDeliveryService:
         return {
             "lan_ip": lan_ip,
             "frontend_port": 5173,
-            "backend_port": 5000,
+            "backend_port": 5050,
             "customer_url": f"http://{lan_ip}:5173/swiggy",
             "driver_companion_url": f"http://{lan_ip}:5173/driver",
             "kitchen_url": f"http://{lan_ip}:5173/kitchen",

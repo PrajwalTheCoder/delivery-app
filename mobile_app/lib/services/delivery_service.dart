@@ -153,6 +153,29 @@ class DeliveryService {
     _activeOrder = newOrder;
     _orderController.add(newOrder);
 
+    // Sync to backend server for cross-device visibility
+    final backendPayload = {
+      'id': orderId,
+      'restaurant_id': restaurant.id,
+      'customer_name': customerName,
+      'customer_address': customerAddress,
+      'customer_latitude': customerLat,
+      'customer_longitude': customerLon,
+      'delivery_otp': newOrder.deliveryOtp,
+      'items': orderItems,
+      'is_real_mode': realMode,
+    };
+    for (final base in [AppConstants.localLoopbackApi, AppConstants.localBackendApi]) {
+      try {
+        final res = await http.post(
+          Uri.parse('$base/food/orders'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode(backendPayload),
+        ).timeout(const Duration(milliseconds: 1500));
+        if (res.statusCode == 200 || res.statusCode == 201) break;
+      } catch (_) {}
+    }
+
     // Sync to Cloud Firestore if connected
     if (_useFirebase && _firestore != null) {
       try {
@@ -197,21 +220,115 @@ class DeliveryService {
     }
   }
 
+  // Robust Default Seed Data
+  static final List<Restaurant> defaultRestaurants = [
+    Restaurant(
+      id: 'rest-behrouz-kharghar',
+      name: 'Behrouz Biryani',
+      tagline: 'Royal & Authentic Dum Biryani',
+      cuisines: ['Biryani', 'North Indian', 'Mughlai'],
+      address: 'Shop 4, Crystal Plaza, Sector 7, Kharghar',
+      locality: 'Sector 7, Kharghar',
+      latitude: 19.0358,
+      longitude: 73.0674,
+      rating: 4.6,
+      costForTwo: 450,
+      imageUrl: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=800',
+      discount: '20% OFF UPTO ₹100',
+      menu: [
+        MenuItem(
+          id: 'item-bb-1',
+          name: 'Dum Gosht Biryani (Mutton)',
+          category: 'Biryani',
+          price: 499,
+          isVeg: false,
+          description: 'Slow-cooked royal mutton biryani with saffron Basmati rice.',
+          imageUrl: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=500',
+          bestseller: true,
+        ),
+        MenuItem(
+          id: 'item-bb-2',
+          name: 'Subz-e-Biryani (Veg Dum)',
+          category: 'Biryani',
+          price: 349,
+          isVeg: true,
+          description: 'Fresh seasonal vegetables and paneer cubes infused with spices.',
+          imageUrl: 'https://images.unsplash.com/photo-1642821373181-696a54913e93?w=500',
+          bestseller: true,
+        ),
+        MenuItem(
+          id: 'item-bb-3',
+          name: 'Gulab Jamun with Rabdi',
+          category: 'Desserts',
+          price: 149,
+          isVeg: true,
+          description: 'Golden fried dumplings steeped in saffron cardamom syrup.',
+          imageUrl: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=500',
+          bestseller: true,
+        ),
+      ],
+    ),
+    Restaurant(
+      id: 'rest-dominos-vashi',
+      name: "Domino's Pizza",
+      tagline: 'Hot & Fresh Hand Tossed Pizzas',
+      cuisines: ['Pizza', 'Italian', 'Fast Food'],
+      address: 'Sector 17 Commercial Area, Vashi, Navi Mumbai',
+      locality: 'Sector 17, Vashi',
+      latitude: 19.0765,
+      longitude: 72.9992,
+      rating: 4.4,
+      costForTwo: 400,
+      imageUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=800',
+      discount: '₹125 OFF ON ₹399',
+      menu: [
+        MenuItem(
+          id: 'item-dom-1',
+          name: 'Farmhouse Pizza (Medium)',
+          category: 'Pizzas',
+          price: 429,
+          isVeg: true,
+          description: 'Crisp capsicum, grilled mushroom, and juicy tomatoes.',
+          imageUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500',
+          bestseller: true,
+        ),
+        MenuItem(
+          id: 'item-dom-2',
+          name: 'Garlic Breadsticks with Dip',
+          category: 'Sides',
+          price: 139,
+          isVeg: true,
+          description: 'Freshly baked breadsticks sprinkled with garlic and herbs.',
+          imageUrl: 'https://images.unsplash.com/photo-1573821663912-569905455b1c?w=500',
+          bestseller: true,
+        ),
+      ],
+    ),
+  ];
+
+  // Candidate local backend API roots
+  static const List<String> _apiBases = [
+    AppConstants.localLoopbackApi,
+    AppConstants.localBackendApi,
+  ];
+
   // Fetch real restaurants
   Future<List<Restaurant>> getRestaurants() async {
-    // 1. Try Local PC Dashboard API
-    try {
-      final response = await http
-          .get(Uri.parse('${AppConstants.localBackendApi}/food/restaurants'))
-          .timeout(const Duration(seconds: 4));
+    // 1. Try Local PC Dashboard API with snappy timeout
+    for (final base in _apiBases) {
+      try {
+        final response = await http
+            .get(Uri.parse('$base/food/restaurants'))
+            .timeout(const Duration(milliseconds: 1500));
 
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        final list = data['restaurants'] as List? ?? [];
-        return list.map((r) => Restaurant.fromJson(r)).toList();
-      }
-    } catch (_) {
-      // Fallback
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          final list = data['restaurants'] as List? ?? [];
+          if (list.isNotEmpty) {
+            return list.map((r) => Restaurant.fromJson(r)).toList();
+          }
+        }
+      } catch (_) {}
     }
 
     // 2. Try Firestore
@@ -232,91 +349,7 @@ class DeliveryService {
       } catch (_) {}
     }
 
-    // 4. Robust Default Seed Data
-    return [
-      Restaurant(
-        id: 'rest-behrouz-kharghar',
-        name: 'Behrouz Biryani',
-        tagline: 'Royal & Authentic Dum Biryani',
-        cuisines: ['Biryani', 'North Indian', 'Mughlai'],
-        address: 'Shop 4, Crystal Plaza, Sector 7, Kharghar',
-        locality: 'Sector 7, Kharghar',
-        latitude: 19.0358,
-        longitude: 73.0674,
-        rating: 4.6,
-        costForTwo: 450,
-        imageUrl: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=800',
-        discount: '20% OFF UPTO ₹100',
-        menu: [
-          MenuItem(
-            id: 'item-bb-1',
-            name: 'Dum Gosht Biryani (Mutton)',
-            category: 'Biryani',
-            price: 499,
-            isVeg: false,
-            description: 'Slow-cooked royal mutton biryani with saffron Basmati rice.',
-            imageUrl: 'https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=500',
-            bestseller: true,
-          ),
-          MenuItem(
-            id: 'item-bb-2',
-            name: 'Subz-e-Biryani (Veg Dum)',
-            category: 'Biryani',
-            price: 349,
-            isVeg: true,
-            description: 'Fresh seasonal vegetables and paneer cubes infused with spices.',
-            imageUrl: 'https://images.unsplash.com/photo-1642821373181-696a54913e93?w=500',
-            bestseller: true,
-          ),
-          MenuItem(
-            id: 'item-bb-3',
-            name: 'Gulab Jamun with Rabdi',
-            category: 'Desserts',
-            price: 149,
-            isVeg: true,
-            description: 'Golden fried dumplings steeped in saffron cardamom syrup.',
-            imageUrl: 'https://images.unsplash.com/photo-1589301760014-d929f3979dbc?w=500',
-            bestseller: true,
-          ),
-        ],
-      ),
-      Restaurant(
-        id: 'rest-dominos-vashi',
-        name: "Domino's Pizza",
-        tagline: 'Hot & Fresh Hand Tossed Pizzas',
-        cuisines: ['Pizza', 'Italian', 'Fast Food'],
-        address: 'Sector 17 Commercial Area, Vashi, Navi Mumbai',
-        locality: 'Sector 17, Vashi',
-        latitude: 19.0765,
-        longitude: 72.9992,
-        rating: 4.4,
-        costForTwo: 400,
-        imageUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=800',
-        discount: '₹125 OFF ON ₹399',
-        menu: [
-          MenuItem(
-            id: 'item-dom-1',
-            name: 'Farmhouse Pizza (Medium)',
-            category: 'Pizzas',
-            price: 429,
-            isVeg: true,
-            description: 'Crisp capsicum, grilled mushroom, and juicy tomatoes.',
-            imageUrl: 'https://images.unsplash.com/photo-1513104890138-7c749659a591?w=500',
-            bestseller: true,
-          ),
-          MenuItem(
-            id: 'item-dom-2',
-            name: 'Garlic Breadsticks with Dip',
-            category: 'Sides',
-            price: 139,
-            isVeg: true,
-            description: 'Freshly baked breadsticks sprinkled with garlic and herbs.',
-            imageUrl: 'https://images.unsplash.com/photo-1573821663912-569905455b1c?w=500',
-            bestseller: true,
-          ),
-        ],
-      ),
-    ];
+    return defaultRestaurants;
   }
 
   // Fetch active order
@@ -326,22 +359,24 @@ class DeliveryService {
       return _activeOrder;
     }
     // 1. Try Local PC Dashboard API
-    try {
-      final idParam = orderId ?? '';
-      final url = idParam.isNotEmpty
-          ? '${AppConstants.localBackendApi}/food/orders/$idParam/track'
-          : '${AppConstants.localBackendApi}/food/orders';
+    final idParam = orderId ?? '';
+    for (final base in _apiBases) {
+      try {
+        final url = idParam.isNotEmpty
+            ? '$base/food/orders/$idParam/track'
+            : '$base/food/orders';
 
-      final response = await http.get(Uri.parse(url)).timeout(const Duration(seconds: 4));
-      if (response.statusCode == 200) {
-        final data = jsonDecode(response.body);
-        if (idParam.isNotEmpty) {
-          return FoodOrder.fromJson(data);
-        } else if (data['orders'] is List && (data['orders'] as List).isNotEmpty) {
-          return FoodOrder.fromJson((data['orders'] as List).first);
+        final response = await http.get(Uri.parse(url)).timeout(const Duration(milliseconds: 1500));
+        if (response.statusCode == 200) {
+          final data = jsonDecode(response.body);
+          if (idParam.isNotEmpty) {
+            return FoodOrder.fromJson(data);
+          } else if (data['orders'] is List && (data['orders'] as List).isNotEmpty) {
+            return FoodOrder.fromJson((data['orders'] as List).first);
+          }
         }
-      }
-    } catch (_) {}
+      } catch (_) {}
+    }
 
     // 2. Default Demo Order (Kharghar Route with high-precision waypoints)
     _activeOrder = FoodOrder(
@@ -406,19 +441,22 @@ class DeliveryService {
     _driverLocController.add(updatedLoc);
 
     // 1. Broadcast via HTTP to local backend if running
-    try {
-      await http.post(
-        Uri.parse('${AppConstants.localBackendApi}/food/orders/$orderId/driver-location'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({
-          'latitude': latitude,
-          'longitude': longitude,
-          'heading': heading,
-          'speed': speed,
-          'is_real_device': true,
-        }),
-      ).timeout(const Duration(milliseconds: 1500));
-    } catch (_) {}
+    for (final base in _apiBases) {
+      try {
+        final res = await http.post(
+          Uri.parse('$base/food/orders/$orderId/driver-location'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({
+            'latitude': latitude,
+            'longitude': longitude,
+            'heading': heading,
+            'speed': speed,
+            'is_real_device': true,
+          }),
+        ).timeout(const Duration(milliseconds: 1500));
+        if (res.statusCode == 200) break;
+      } catch (_) {}
+    }
 
     // 2. Broadcast via Firebase Firestore for Cross-Device Sync
     if (_useFirebase && _firestore != null) {
@@ -482,13 +520,16 @@ class DeliveryService {
     }
 
     // 1. Try Local PC Dashboard API
-    try {
-      await http.post(
-        Uri.parse('${AppConstants.localBackendApi}/food/orders/$orderId/status'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'status': status}),
-      );
-    } catch (_) {}
+    for (final base in _apiBases) {
+      try {
+        await http.post(
+          Uri.parse('$base/food/orders/$orderId/status'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'status': status}),
+        ).timeout(const Duration(milliseconds: 1500));
+        break;
+      } catch (_) {}
+    }
 
     // 2. Try Firebase Firestore
     if (_useFirebase && _firestore != null) {
@@ -542,6 +583,18 @@ class DeliveryService {
         );
         _orderController.add(_activeOrder!);
 
+        // Also notify backend server
+        for (final base in _apiBases) {
+          try {
+            await http.post(
+              Uri.parse('$base/food/orders/${_activeOrder!.id}/verify-otp'),
+              headers: {'Content-Type': 'application/json'},
+              body: jsonEncode({'otp': cleanOtp}),
+            ).timeout(const Duration(milliseconds: 1500));
+            break;
+          } catch (_) {}
+        }
+
         if (_useFirebase && _firestore != null) {
           try {
             await _firestore!.collection('orders').doc(_activeOrder!.id).update({
@@ -557,23 +610,23 @@ class DeliveryService {
       }
     }
 
-    try {
-      final res = await http.post(
-        Uri.parse('${AppConstants.localBackendApi}/food/orders/$orderId/verify-otp'),
-        headers: {'Content-Type': 'application/json'},
-        body: jsonEncode({'otp': cleanOtp}),
-      );
-      if (res.statusCode == 200) {
-        return {'success': true};
-      }
-      final err = jsonDecode(res.body);
-      return {'success': false, 'error': err['error'] ?? 'Invalid OTP'};
-    } catch (_) {
-      // Offline fallback verification
-      if (cleanOtp == '4829') {
-        return {'success': true};
-      }
-      return {'success': false, 'error': 'Invalid OTP. (Demo expected: 4829)'};
+    for (final base in _apiBases) {
+      try {
+        final res = await http.post(
+          Uri.parse('$base/food/orders/$orderId/verify-otp'),
+          headers: {'Content-Type': 'application/json'},
+          body: jsonEncode({'otp': cleanOtp}),
+        ).timeout(const Duration(milliseconds: 1500));
+        if (res.statusCode == 200) {
+          return {'success': true};
+        }
+      } catch (_) {}
     }
+
+    // Offline / Demo fallback verification
+    if (cleanOtp == '4829') {
+      return {'success': true};
+    }
+    return {'success': false, 'error': 'Invalid OTP ($cleanOtp). Ask customer for their 4-digit code.'};
   }
 }

@@ -20,8 +20,8 @@ class _CustomerTrackingScreenState extends State<CustomerTrackingScreen>
   final DeliveryService _service = DeliveryService();
   final MapController _mapController = MapController();
 
-  FoodOrder? _order;
-  bool _loading = true;
+  late FoodOrder? _order = _service.currentOrder;
+  late bool _loading = _order == null;
   Timer? _pollTimer;
   Timer? _simulationTimer;
 
@@ -116,7 +116,7 @@ class _CustomerTrackingScreenState extends State<CustomerTrackingScreen>
   }
 
   Future<void> _fetchOrder({bool silent = false}) async {
-    if (!silent) setState(() => _loading = true);
+    if (!silent && _order == null) setState(() => _loading = true);
     final order = await _service.getActiveOrder(widget.orderId);
     if (mounted && order != null) {
       final newPos = LatLng(
@@ -471,8 +471,10 @@ class _CustomerTrackingScreenState extends State<CustomerTrackingScreen>
                           isDelivered
                               ? 'Delivered Safely!'
                               : isNearby
-                                  ? 'Arriving in 1-2 mins!'
-                                  : 'Arriving in ~$_predictedEtaMinutes mins',
+                                  ? 'Arriving in 1-2 mins! 🔔'
+                                  : (_currentSpeedKmh < 3.0 && !_isSimulating)
+                                      ? 'Rider at traffic signal 🚦'
+                                      : 'Arriving in ~$_predictedEtaMinutes mins',
                           style: const TextStyle(
                             color: Colors.white,
                             fontWeight: FontWeight.bold,
@@ -482,7 +484,11 @@ class _CustomerTrackingScreenState extends State<CustomerTrackingScreen>
                         Text(
                           isDelivered
                               ? 'Enjoy your fresh meal'
-                              : '${(_distanceRemainingMeters / 1000).toStringAsFixed(1)} km away • Moving at ${_currentSpeedKmh.toStringAsFixed(0)} km/h',
+                              : isNearby
+                                  ? 'Rider is approaching your doorstep'
+                                  : (_currentSpeedKmh < 3.0 && !_isSimulating)
+                                      ? '${(_distanceRemainingMeters / 1000).toStringAsFixed(1)} km away • Resuming motion soon'
+                                      : '${(_distanceRemainingMeters / 1000).toStringAsFixed(1)} km away • Moving at ${_currentSpeedKmh.toStringAsFixed(0)} km/h',
                           style: TextStyle(color: Colors.grey.shade400, fontSize: 11),
                         ),
                       ],

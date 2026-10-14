@@ -41,7 +41,7 @@ export const DeviceConnectModal: React.FC<DeviceConnectModalProps> = ({
           setDeviceInfo({
             lan_ip: host,
             frontend_port: Number(port),
-            backend_port: 5000,
+            backend_port: 5050,
             customer_url: `http://${host}:${port}/swiggy`,
             driver_companion_url: `http://${host}:${port}/driver`,
             kitchen_url: `http://${host}:${port}/kitchen`,

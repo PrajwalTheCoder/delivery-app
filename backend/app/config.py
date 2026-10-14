@@ -6,8 +6,8 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 class Config:
     FLASK_ENV = os.getenv("FLASK_ENV", "development")
     DEBUG = os.getenv("FLASK_DEBUG", "1") == "1"
-    PORT = int(os.getenv("PORT", "5000"))
-    HOST = os.getenv("HOST", "127.0.0.1")
+    PORT = int(os.getenv("PORT", "5050"))
+    HOST = os.getenv("HOST", "0.0.0.0")
     
     # SQLite default database path
     DATABASE_URL = os.getenv("DATABASE_URL", f"sqlite:///{BASE_DIR / 'routewise.db'}")
