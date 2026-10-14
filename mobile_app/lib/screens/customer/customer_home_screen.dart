@@ -1,4 +1,6 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:geolocator/geolocator.dart';
 import '../../models/models.dart';
 import '../../services/delivery_service.dart';
 import 'customer_tracking_screen.dart';
@@ -20,10 +22,22 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
   final Map<String, int> _cart = {};
   Restaurant? _activeRestaurant;
 
+  // Real-time order listener
+  StreamSubscription<FoodOrder>? _orderSub;
+
   @override
   void initState() {
     super.initState();
     _loadRestaurants();
+    _orderSub = _service.onOrderUpdate.listen((_) {
+      if (mounted) setState(() {});
+    });
+  }
+
+  @override
+  void dispose() {
+    _orderSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _loadRestaurants() async {
@@ -227,9 +241,367 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
     );
   }
 
+  void _showCheckoutSheet() {
+    if (_activeRestaurant == null || _cart.isEmpty) return;
+    final restaurant = _activeRestaurant!;
+
+    bool isRealMode = false;
+    bool isPlacing = false;
+    Position? detectedPosition;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) {
+          double subtotal = 0.0;
+          _cart.forEach((id, qty) {
+            final item = restaurant.menu.firstWhere(
+              (m) => m.id == id,
+              orElse: () => MenuItem(
+                id: id,
+                name: 'Dish',
+                category: 'Food',
+                price: 249.0,
+                isVeg: true,
+                description: '',
+                imageUrl: '',
+              ),
+            );
+            subtotal += item.price * qty;
+          });
+
+          final deliveryFee = 35.0;
+          final packagingFee = 25.0;
+          final taxes = subtotal * 0.05;
+          final grandTotal = subtotal + deliveryFee + packagingFee + taxes;
+
+          return Container(
+            height: MediaQuery.of(context).size.height * 0.85,
+            decoration: const BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+            ),
+            padding: const EdgeInsets.all(20),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Center(
+                  child: Container(
+                    width: 40,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: Colors.grey.shade300,
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                  children: [
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Checkout & Confirm Order',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        Text(
+                          restaurant.name,
+                          style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+                        ),
+                      ],
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.close),
+                      onPressed: () => Navigator.of(ctx).pop(),
+                    ),
+                  ],
+                ),
+                const Divider(height: 20),
+
+                Expanded(
+                  child: ListView(
+                    children: [
+                      // Mode Selector
+                      const Text(
+                        'SELECT TRACKING MODE:',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: Colors.black54),
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Real Hardware GPS Mode Card
+                      InkWell(
+                        onTap: () async {
+                          setSheetState(() => isRealMode = true);
+                          try {
+                            LocationPermission permission = await Geolocator.checkPermission();
+                            if (permission == LocationPermission.denied) {
+                              permission = await Geolocator.requestPermission();
+                            }
+                            if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+                              final pos = await Geolocator.getCurrentPosition();
+                              setSheetState(() => detectedPosition = pos);
+                            }
+                          } catch (_) {}
+                        },
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: isRealMode ? Colors.green.shade50 : Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: isRealMode ? Colors.green : Colors.grey.shade300,
+                              width: isRealMode ? 2 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.sensors, color: isRealMode ? Colors.green : Colors.grey, size: 24),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Text(
+                                          '⚡ Real GPS Hardware Mode',
+                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                        ),
+                                        const SizedBox(width: 6),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                          decoration: BoxDecoration(
+                                            color: Colors.green,
+                                            borderRadius: BorderRadius.circular(4),
+                                          ),
+                                          child: const Text('LIVE', style: TextStyle(color: Colors.white, fontSize: 9, fontWeight: FontWeight.bold)),
+                                        ),
+                                      ],
+                                    ),
+                                    Text(
+                                      detectedPosition != null
+                                          ? 'GPS Detected: ${detectedPosition!.latitude.toStringAsFixed(4)}, ${detectedPosition!.longitude.toStringAsFixed(4)}'
+                                          : 'Uses real phone GPS hardware, dynamic 4-digit OTP, & live movement.',
+                                      style: TextStyle(fontSize: 11, color: isRealMode ? Colors.green.shade800 : Colors.grey.shade600),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Radio<bool>(
+                                value: true,
+                                groupValue: isRealMode,
+                                activeColor: Colors.green,
+                                onChanged: (val) => setSheetState(() => isRealMode = val!),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 10),
+
+                      // Demo Simulation Mode Card
+                      InkWell(
+                        onTap: () => setSheetState(() => isRealMode = false),
+                        borderRadius: BorderRadius.circular(16),
+                        child: Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: !isRealMode ? Colors.blue.shade50 : Colors.grey.shade50,
+                            borderRadius: BorderRadius.circular(16),
+                            border: Border.all(
+                              color: !isRealMode ? Colors.blue : Colors.grey.shade300,
+                              width: !isRealMode ? 2 : 1,
+                            ),
+                          ),
+                          child: Row(
+                            children: [
+                              Icon(Icons.sports_esports, color: !isRealMode ? Colors.blue : Colors.grey, size: 24),
+                              const SizedBox(width: 12),
+                              const Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      '🎮 Demo Simulation Mode',
+                                      style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                    ),
+                                    Text(
+                                      'Simulated Kharghar road route with auto rider animation & demo OTP (4829).',
+                                      style: TextStyle(fontSize: 11, color: Colors.blueGrey),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              Radio<bool>(
+                                value: false,
+                                groupValue: isRealMode,
+                                activeColor: Colors.blue,
+                                onChanged: (val) => setSheetState(() => isRealMode = val!),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+
+                      const SizedBox(height: 16),
+                      const Text(
+                        'ORDER ITEMS:',
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.bold, letterSpacing: 0.5, color: Colors.black54),
+                      ),
+                      const SizedBox(height: 8),
+
+                      // Dish list
+                      ..._cart.entries.map((entry) {
+                        final item = restaurant.menu.firstWhere(
+                          (m) => m.id == entry.key,
+                          orElse: () => MenuItem(
+                            id: entry.key,
+                            name: 'Dish',
+                            category: 'Food',
+                            price: 249.0,
+                            isVeg: true,
+                            description: '',
+                            imageUrl: '',
+                          ),
+                        );
+                        return Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Row(
+                                children: [
+                                  Text('${entry.value}x', style: const TextStyle(fontWeight: FontWeight.bold, color: Color(0xFFFC8019))),
+                                  const SizedBox(width: 8),
+                                  Text(item.name, style: const TextStyle(fontSize: 13)),
+                                ],
+                              ),
+                              Text('₹${(item.price * entry.value).toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.w600)),
+                            ],
+                          ),
+                        );
+                      }),
+
+                      const Divider(height: 24),
+
+                      // Bill breakdown
+                      _buildBillRow('Item Subtotal', '₹${subtotal.toStringAsFixed(0)}'),
+                      _buildBillRow('Delivery Partner Fee', '₹${deliveryFee.toStringAsFixed(0)}'),
+                      _buildBillRow('Restaurant Packaging & Taxes', '₹${(packagingFee + taxes).toStringAsFixed(0)}'),
+                      const Divider(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          const Text('Grand Total', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 15)),
+                          Text('₹${grandTotal.toStringAsFixed(0)}', style: const TextStyle(fontWeight: FontWeight.w900, fontSize: 16, color: Color(0xFFFC8019))),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+
+                const SizedBox(height: 12),
+
+                // Confirm & Place Order Button
+                SizedBox(
+                  width: double.infinity,
+                  child: ElevatedButton(
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: const Color(0xFFFC8019),
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                    ),
+                    onPressed: isPlacing
+                        ? null
+                        : () async {
+                            setSheetState(() => isPlacing = true);
+
+                            double customerLat = 19.03080;
+                            double customerLon = 73.07220;
+                            String customerAddress = 'Flat 301, Sector 7, Kharghar';
+
+                            if (isRealMode && detectedPosition != null) {
+                              customerLat = detectedPosition!.latitude;
+                              customerLon = detectedPosition!.longitude;
+                              customerAddress = 'Current Phone Location (${customerLat.toStringAsFixed(4)}, ${customerLon.toStringAsFixed(4)})';
+                            }
+
+                            final newOrder = await _service.createRealOrder(
+                              restaurant: restaurant,
+                              cart: _cart,
+                              customerName: 'Prajwal (Customer)',
+                              customerAddress: customerAddress,
+                              customerLat: customerLat,
+                              customerLon: customerLon,
+                              realMode: isRealMode,
+                            );
+
+                            setState(() {
+                              _cart.clear();
+                              _activeRestaurant = null;
+                            });
+
+                            if (ctx.mounted) {
+                              Navigator.of(ctx).pop();
+                            }
+                            if (mounted) {
+                              Navigator.of(context).push(
+                                MaterialPageRoute(
+                                  builder: (_) => CustomerTrackingScreen(orderId: newOrder.id),
+                                ),
+                              );
+                            }
+                          },
+                    child: isPlacing
+                        ? const SizedBox(height: 20, width: 20, child: CircularProgressIndicator(strokeWidth: 2, color: Colors.white))
+                        : Row(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Text(
+                                isRealMode ? '⚡ Place Real GPS Order' : '🎮 Place Demo Order',
+                                style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold),
+                              ),
+                              const SizedBox(width: 8),
+                              const Icon(Icons.arrow_forward),
+                            ],
+                          ),
+                  ),
+                ),
+              ],
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildBillRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(label, style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+          Text(value, style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     int totalItems = _cart.values.fold(0, (prev, curr) => prev + curr);
+    final active = _service.currentOrder;
+    final isReal = active?.isRealMode ?? false;
+    final otpText = active?.deliveryOtp ?? '4829';
+    final titleText = active != null ? '${active.statusTitle} (OTP: $otpText)' : 'Active Delivery in Progress (OTP: 4829)';
+    final subText = active != null ? '${active.driverName} • ${active.restaurantName}' : 'Ramesh Kumar is moving live on road • Tap to view map';
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FA),
@@ -311,26 +683,44 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                           ),
                         ],
                       ),
-                      child: const Row(
+                      child: Row(
                         children: [
-                          Icon(Icons.radar, color: Colors.white, size: 22),
-                          SizedBox(width: 10),
+                          const Icon(Icons.radar, color: Colors.white, size: 22),
+                          const SizedBox(width: 10),
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text(
-                                  'Active Delivery in Progress (OTP: 4829)',
-                                  style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        titleText,
+                                        style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                    ),
+                                    Container(
+                                      padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+                                      decoration: BoxDecoration(
+                                        color: isReal ? Colors.greenAccent.shade700 : Colors.blue.shade700,
+                                        borderRadius: BorderRadius.circular(4),
+                                      ),
+                                      child: Text(
+                                        isReal ? '⚡ REAL' : '🎮 DEMO',
+                                        style: const TextStyle(color: Colors.white, fontSize: 8, fontWeight: FontWeight.bold),
+                                      ),
+                                    ),
+                                  ],
                                 ),
                                 Text(
-                                  'Ramesh Kumar is moving live on road • Tap to view map',
-                                  style: TextStyle(color: Colors.white70, fontSize: 10),
+                                  subText,
+                                  style: const TextStyle(color: Colors.white70, fontSize: 10),
                                 ),
                               ],
                             ),
                           ),
-                          Icon(Icons.chevron_right, color: Colors.white),
+                          const Icon(Icons.chevron_right, color: Colors.white),
                         ],
                       ),
                     ),
@@ -448,18 +838,14 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
                 ),
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const CustomerTrackingScreen()),
-                  );
-                },
+                onPressed: _showCheckoutSheet,
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
                     const Icon(Icons.shopping_bag_outlined, color: Colors.white),
                     const SizedBox(width: 8),
                     Text(
-                      'View Order (${_activeRestaurant != null ? "${_activeRestaurant!.name} • " : ""}$totalItems items) & Track',
+                      'Review Order & Checkout ($totalItems items) ➔',
                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 13),
                     ),
                   ],

@@ -28,16 +28,21 @@ class _DriverScreenState extends State<DriverScreen> {
   // OTP Verification
   final TextEditingController _otpController = TextEditingController();
   bool _otpVerifying = false;
+  StreamSubscription<FoodOrder>? _orderSub;
 
   @override
   void initState() {
     super.initState();
     _fetchOrder();
+    _orderSub = _service.onOrderUpdate.listen((order) {
+      if (mounted) setState(() => _activeOrder = order);
+    });
   }
 
   @override
   void dispose() {
     _positionStream?.cancel();
+    _orderSub?.cancel();
     _otpController.dispose();
     super.dispose();
   }
@@ -393,6 +398,60 @@ class _DriverScreenState extends State<DriverScreen> {
                                 child: Text(_activeOrder!.customerAddress, style: const TextStyle(color: Colors.white70, fontSize: 12)),
                               ),
                             ],
+                          ),
+                          const SizedBox(height: 12),
+
+                          // Items to Collect & Deliver
+                          Container(
+                            padding: const EdgeInsets.all(12),
+                            decoration: BoxDecoration(
+                              color: Colors.black38,
+                              borderRadius: BorderRadius.circular(14),
+                              border: Border.all(color: Colors.white10),
+                            ),
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                  children: [
+                                    const Text(
+                                      'ITEMS TO COLLECT:',
+                                      style: TextStyle(
+                                        color: Color(0xFFFC8019),
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.bold,
+                                        letterSpacing: 0.5,
+                                      ),
+                                    ),
+                                    Text(
+                                      '${_activeOrder!.items.length} items',
+                                      style: const TextStyle(color: Colors.white54, fontSize: 10),
+                                    ),
+                                  ],
+                                ),
+                                const SizedBox(height: 6),
+                                ..._activeOrder!.items.map((it) {
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 2),
+                                    child: Row(
+                                      children: [
+                                        Text(
+                                          '${it['quantity']}x ',
+                                          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold, fontSize: 12),
+                                        ),
+                                        Expanded(
+                                          child: Text(
+                                            it['name']?.toString() ?? 'Dish',
+                                            style: const TextStyle(color: Colors.white70, fontSize: 12),
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  );
+                                }),
+                              ],
+                            ),
                           ),
                           const SizedBox(height: 18),
 

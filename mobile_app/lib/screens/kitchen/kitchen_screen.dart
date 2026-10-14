@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../models/models.dart';
 import '../../services/delivery_service.dart';
@@ -13,11 +14,21 @@ class _KitchenScreenState extends State<KitchenScreen> {
   final DeliveryService _service = DeliveryService();
   FoodOrder? _order;
   bool _loading = true;
+  StreamSubscription<FoodOrder>? _orderSub;
 
   @override
   void initState() {
     super.initState();
     _fetchOrder();
+    _orderSub = _service.onOrderUpdate.listen((order) {
+      if (mounted) setState(() => _order = order);
+    });
+  }
+
+  @override
+  void dispose() {
+    _orderSub?.cancel();
+    super.dispose();
   }
 
   Future<void> _fetchOrder() async {
@@ -134,23 +145,22 @@ class _KitchenScreenState extends State<KitchenScreen> {
                                 border: Border.all(color: Colors.grey.shade200),
                               ),
                               child: Column(
-                                children: [
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      const Text('2 × Dum Gosht Biryani (Mutton)', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                                      Text('₹998', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Row(
-                                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                                    children: [
-                                      const Text('1 × Gulab Jamun with Rabdi', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
-                                      Text('₹149', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
-                                    ],
-                                  ),
-                                ],
+                                children: _order!.items.map((it) {
+                                  final name = it['name']?.toString() ?? 'Dish';
+                                  final qty = it['quantity'] ?? 1;
+                                  final price = (it['price'] as num?)?.toDouble() ?? 0.0;
+                                  final total = (it['total'] as num?)?.toDouble() ?? (price * (qty as num));
+                                  return Padding(
+                                    padding: const EdgeInsets.symmetric(vertical: 4),
+                                    child: Row(
+                                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Text('$qty × $name', style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                        Text('₹${total.toStringAsFixed(0)}', style: TextStyle(color: Colors.grey.shade600, fontSize: 12)),
+                                      ],
+                                    ),
+                                  );
+                                }).toList(),
                               ),
                             ),
 

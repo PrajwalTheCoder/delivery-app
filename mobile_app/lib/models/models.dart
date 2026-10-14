@@ -177,6 +177,8 @@ class FoodOrder {
   final DriverLocation driverLocation;
   final List<List<double>> roadGeometry;
   final int estimatedDeliveryMins;
+  final List<Map<String, dynamic>> items;
+  final bool isRealMode;
 
   FoodOrder({
     required this.id,
@@ -198,7 +200,42 @@ class FoodOrder {
     required this.driverLocation,
     required this.roadGeometry,
     this.estimatedDeliveryMins = 18,
+    this.items = const [],
+    this.isRealMode = false,
   });
+
+  FoodOrder copyWith({
+    String? status,
+    String? statusTitle,
+    String? statusMessage,
+    DriverLocation? driverLocation,
+    int? estimatedDeliveryMins,
+    List<List<double>>? roadGeometry,
+  }) {
+    return FoodOrder(
+      id: id,
+      customerName: customerName,
+      customerAddress: customerAddress,
+      customerLat: customerLat,
+      customerLon: customerLon,
+      restaurantName: restaurantName,
+      restaurantLat: restaurantLat,
+      restaurantLon: restaurantLon,
+      status: status ?? this.status,
+      statusTitle: statusTitle ?? this.statusTitle,
+      statusMessage: statusMessage ?? this.statusMessage,
+      deliveryOtp: deliveryOtp,
+      totalAmount: totalAmount,
+      driverName: driverName,
+      driverPhone: driverPhone,
+      driverVehicle: driverVehicle,
+      driverLocation: driverLocation ?? this.driverLocation,
+      roadGeometry: roadGeometry ?? this.roadGeometry,
+      estimatedDeliveryMins: estimatedDeliveryMins ?? this.estimatedDeliveryMins,
+      items: items,
+      isRealMode: isRealMode,
+    );
+  }
 
   factory FoodOrder.fromJson(Map<String, dynamic> json) {
     var rawCust = json['customer'] as Map<String, dynamic>?;
@@ -216,19 +253,36 @@ class FoodOrder {
       }
     }
 
+    List<Map<String, dynamic>> parsedItems = [];
+    if (json['items'] is List) {
+      for (var it in json['items']) {
+        if (it is Map<String, dynamic>) {
+          parsedItems.add(it);
+        } else if (it is Map) {
+          parsedItems.add(Map<String, dynamic>.from(it));
+        }
+      }
+    }
+    if (parsedItems.isEmpty) {
+      parsedItems = [
+        {'name': 'Dum Gosht Biryani (Mutton)', 'quantity': 1, 'price': 499.0},
+        {'name': 'Gulab Jamun with Rabdi', 'quantity': 1, 'price': 149.0},
+      ];
+    }
+
     return FoodOrder(
       id: json['id']?.toString() ?? json['order_id']?.toString() ?? 'ZOM-84920',
       customerName: rawCust?['name']?.toString() ?? json['customer_name']?.toString() ?? 'Pooja Verma',
-      customerAddress: rawCust?['address']?.toString() ?? json['customer_address']?.toString() ?? 'Sector 7, Kharghar',
+      customerAddress: rawCust?['address']?.toString() ?? json['customer_address']?.toString() ?? 'Flat 301, Sector 7, Kharghar',
       customerLat: (rawCust?['latitude'] as num?)?.toDouble() ?? (json['customer_lat'] as num?)?.toDouble() ?? 19.0345,
       customerLon: (rawCust?['longitude'] as num?)?.toDouble() ?? (json['customer_lon'] as num?)?.toDouble() ?? 73.0678,
       restaurantName: rawRest?['name']?.toString() ?? json['restaurant_name']?.toString() ?? 'Behrouz Biryani',
-      restaurantLat: (rawRest?['latitude'] as num?)?.toDouble() ?? 19.0358,
-      restaurantLon: (rawRest?['longitude'] as num?)?.toDouble() ?? 73.0674,
+      restaurantLat: (rawRest?['latitude'] as num?)?.toDouble() ?? (json['restaurant_lat'] as num?)?.toDouble() ?? 19.0358,
+      restaurantLon: (rawRest?['longitude'] as num?)?.toDouble() ?? (json['restaurant_lon'] as num?)?.toDouble() ?? 73.0674,
       status: json['status']?.toString() ?? 'out_for_delivery',
       statusTitle: json['status_title']?.toString() ?? 'Rider On The Way',
       statusMessage: json['status_message']?.toString() ?? 'Rider is en route with your hot food.',
-      deliveryOtp: json['delivery_otp']?.toString() ?? '4829',
+      deliveryOtp: json['delivery_otp']?.toString() ?? json['otp']?.toString() ?? '4829',
       totalAmount: (json['bill']?['grand_total'] as num?)?.toDouble() ?? (json['total_amount'] as num?)?.toDouble() ?? 530.0,
       driverName: rawRider?['name']?.toString() ?? json['driver_name']?.toString() ?? 'Ramesh Kumar',
       driverPhone: rawRider?['phone']?.toString() ?? json['driver_phone']?.toString() ?? '+91 98201 44821',
@@ -242,6 +296,8 @@ class FoodOrder {
             ),
       roadGeometry: geom,
       estimatedDeliveryMins: (json['estimated_delivery_mins'] as num?)?.toInt() ?? 18,
+      items: parsedItems,
+      isRealMode: json['is_real_mode'] == true,
     );
   }
 }
