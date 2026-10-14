@@ -10,7 +10,8 @@ import {
   Navigation, 
   ChefHat, 
   ShieldCheck,
-  Radio
+  Radio,
+  Download
 } from 'lucide-react';
 import { api } from '../../services/api';
 import type { DeviceInfo } from '../../types';
@@ -27,7 +28,7 @@ export const DeviceConnectModal: React.FC<DeviceConnectModalProps> = ({
   activeOrderId
 }) => {
   const [deviceInfo, setDeviceInfo] = useState<DeviceInfo | null>(null);
-  const [activeTab, setActiveTab] = useState<'driver' | 'customer' | 'kitchen'>('driver');
+  const [activeTab, setActiveTab] = useState<'apk' | 'driver' | 'customer' | 'kitchen'>('apk');
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
@@ -60,7 +61,9 @@ export const DeviceConnectModal: React.FC<DeviceConnectModalProps> = ({
     const baseHost = deviceInfo.lan_ip || window.location.hostname;
     const port = deviceInfo.frontend_port || 5173;
 
-    if (activeTab === 'driver') {
+    if (activeTab === 'apk') {
+      return `http://${baseHost}:${port}/RouteWise_RealTimeEngine.apk`;
+    } else if (activeTab === 'driver') {
       const orderParam = activeOrderId ? `?orderId=${activeOrderId}` : '';
       return `http://${baseHost}:${port}/driver${orderParam}`;
     } else if (activeTab === 'customer') {
@@ -90,7 +93,7 @@ export const DeviceConnectModal: React.FC<DeviceConnectModalProps> = ({
         <div className="bg-gradient-to-r from-gray-900 via-gray-800 to-gray-900 p-6 text-white relative">
           <button
             onClick={onClose}
-            className="absolute top-5 right-5 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors"
+            className="absolute top-5 right-5 p-2 rounded-full bg-white/10 hover:bg-white/20 text-white transition-colors cursor-pointer"
           >
             <X className="w-5 h-5" />
           </button>
@@ -106,16 +109,27 @@ export const DeviceConnectModal: React.FC<DeviceConnectModalProps> = ({
                 </span>
               </div>
               <p className="text-xs text-gray-300 mt-0.5">
-                Scan with your phone to use real-time GPS & live order delivery
+                Download the Android APK or connect your real phone to RouteWise
               </p>
             </div>
           </div>
 
           {/* Role Tabs */}
-          <div className="flex bg-white/10 p-1 rounded-xl mt-5 gap-1">
+          <div className="flex bg-white/10 p-1 rounded-xl mt-5 gap-1 flex-wrap">
+            <button
+              onClick={() => setActiveTab('apk')}
+              className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
+                activeTab === 'apk'
+                  ? 'bg-orange-500 text-white shadow-md'
+                  : 'text-gray-300 hover:text-white hover:bg-white/5'
+              }`}
+            >
+              <Download className="w-3.5 h-3.5" />
+              Download APK
+            </button>
             <button
               onClick={() => setActiveTab('driver')}
-              className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+              className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 activeTab === 'driver'
                   ? 'bg-orange-500 text-white shadow-md'
                   : 'text-gray-300 hover:text-white hover:bg-white/5'
@@ -126,25 +140,25 @@ export const DeviceConnectModal: React.FC<DeviceConnectModalProps> = ({
             </button>
             <button
               onClick={() => setActiveTab('customer')}
-              className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+              className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 activeTab === 'customer'
                   ? 'bg-orange-500 text-white shadow-md'
                   : 'text-gray-300 hover:text-white hover:bg-white/5'
               }`}
             >
               <Smartphone className="w-3.5 h-3.5" />
-              Customer Tracking
+              Customer
             </button>
             <button
               onClick={() => setActiveTab('kitchen')}
-              className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all ${
+              className={`flex-1 py-2 px-3 rounded-lg text-xs font-semibold flex items-center justify-center gap-1.5 transition-all cursor-pointer ${
                 activeTab === 'kitchen'
                   ? 'bg-orange-500 text-white shadow-md'
                   : 'text-gray-300 hover:text-white hover:bg-white/5'
               }`}
             >
               <ChefHat className="w-3.5 h-3.5" />
-              Kitchen Terminal
+              Kitchen
             </button>
           </div>
         </div>
@@ -159,14 +173,6 @@ export const DeviceConnectModal: React.FC<DeviceConnectModalProps> = ({
                 size={168}
                 level="M"
                 includeMargin={false}
-                imageSettings={{
-                  src: '',
-                  x: undefined,
-                  y: undefined,
-                  height: 24,
-                  width: 24,
-                  excavate: true,
-                }}
               />
             </div>
 
@@ -176,11 +182,13 @@ export const DeviceConnectModal: React.FC<DeviceConnectModalProps> = ({
                 LAN IP: <span className="font-mono text-orange-600">{deviceInfo?.lan_ip || 'Detecting...'}</span>
               </div>
               <h4 className="text-sm font-bold text-gray-900">
+                {activeTab === 'apk' && 'Download Android APK (177 MB)'}
                 {activeTab === 'driver' && 'Open Driver App on Phone'}
                 {activeTab === 'customer' && 'Live Track on Phone'}
                 {activeTab === 'kitchen' && 'Kitchen Order Tablet'}
               </h4>
               <p className="text-xs text-gray-600 leading-relaxed">
+                {activeTab === 'apk' && 'Scan with any phone camera or tap download to get the RouteWise APK directly onto your Android device.'}
                 {activeTab === 'driver' && 'Connect your real phone GPS. As you move or walk, your physical coordinates update the customer map in real time!'}
                 {activeTab === 'customer' && 'Experience live Swiggy / Zomato order tracking directly on your mobile browser.'}
                 {activeTab === 'kitchen' && 'Receive incoming order sound chimes and mark food ready for rider pickup.'}
@@ -188,16 +196,30 @@ export const DeviceConnectModal: React.FC<DeviceConnectModalProps> = ({
             </div>
           </div>
 
+          {/* Direct Download Button for APK */}
+          {activeTab === 'apk' && (
+            <a
+              href="/RouteWise_RealTimeEngine.apk"
+              download="RouteWise_RealTimeEngine.apk"
+              className="w-full py-3 px-4 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all active:scale-98"
+            >
+              <Download className="w-4 h-4" />
+              <span>Direct Download RouteWise APK (177 MB)</span>
+            </a>
+          )}
+
           {/* Quick URL Box */}
           <div className="space-y-2">
-            <label className="text-xs font-bold text-gray-700 block">Direct URL for Phone Browser:</label>
+            <label className="text-xs font-bold text-gray-700 block">
+              {activeTab === 'apk' ? 'APK Direct Download Link:' : 'Direct URL for Phone Browser:'}
+            </label>
             <div className="flex items-center gap-2">
               <div className="flex-1 bg-gray-50 border border-gray-200 rounded-xl px-3.5 py-2.5 text-xs font-mono text-gray-800 truncate select-all">
                 {currentUrl}
               </div>
               <button
                 onClick={handleCopy}
-                className="px-3.5 py-2.5 rounded-xl bg-gray-900 hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0 shadow-xs"
+                className="px-3.5 py-2.5 rounded-xl bg-gray-900 hover:bg-black text-white text-xs font-semibold flex items-center gap-1.5 transition-colors shrink-0 shadow-xs cursor-pointer"
               >
                 {copied ? <Check className="w-3.5 h-3.5 text-emerald-400" /> : <Copy className="w-3.5 h-3.5" />}
                 {copied ? 'Copied' : 'Copy'}
@@ -209,28 +231,39 @@ export const DeviceConnectModal: React.FC<DeviceConnectModalProps> = ({
           <div className="p-4 rounded-xl bg-gray-50 border border-gray-200 space-y-2.5 text-xs text-gray-600">
             <div className="font-bold text-gray-900 flex items-center gap-1.5">
               <ShieldCheck className="w-4 h-4 text-emerald-600" />
-              How Real Device Connection Works:
+              {activeTab === 'apk' ? 'How to Install on Friends\' Android Devices:' : 'How Real Device Connection Works:'}
             </div>
-            <ol className="list-decimal pl-5 space-y-1.5">
-              <li>Ensure your smartphone is on the same Wi-Fi network as this computer.</li>
-              <li>Scan the QR code with your iPhone or Android camera to open the web app.</li>
-              <li>Tap <strong>"📡 Share Device GPS"</strong> to stream your phone's real latitude & longitude into the active delivery order!</li>
-              <li>The customer's live tracking map on your computer will move with your phone in real time.</li>
-            </ol>
+            {activeTab === 'apk' ? (
+              <ol className="list-decimal pl-5 space-y-1.5">
+                <li>Connect your friend's phone to the same Wi-Fi or hotspot as your computer.</li>
+                <li>Scan the QR code above or open the link in Chrome on their Android phone.</li>
+                <li>Tap <strong>"Download anyway"</strong> when Android prompts about downloading an APK.</li>
+                <li>Open the downloaded file and tap <strong>"Install"</strong> (allow Unknown Sources if prompted).</li>
+              </ol>
+            ) : (
+              <ol className="list-decimal pl-5 space-y-1.5">
+                <li>Ensure your smartphone is on the same Wi-Fi network as this computer.</li>
+                <li>Scan the QR code with your iPhone or Android camera to open the web app.</li>
+                <li>Tap <strong>"📡 Share Device GPS"</strong> to stream your phone's real latitude & longitude into the active delivery order!</li>
+                <li>The customer's live tracking map on your computer will move with your phone in real time.</li>
+              </ol>
+            )}
           </div>
 
           {/* Action Buttons */}
           <div className="flex items-center gap-3 pt-2">
-            <button
-              onClick={handleOpenNewWindow}
-              className="flex-1 py-3 px-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all active:scale-98"
-            >
-              <ExternalLink className="w-4 h-4" />
-              Open Mobile Simulator Window
-            </button>
+            {activeTab !== 'apk' && (
+              <button
+                onClick={handleOpenNewWindow}
+                className="flex-1 py-3 px-4 rounded-xl bg-orange-500 hover:bg-orange-600 text-white font-bold text-xs flex items-center justify-center gap-2 shadow-md transition-all active:scale-98 cursor-pointer"
+              >
+                <ExternalLink className="w-4 h-4" />
+                Open Mobile Simulator Window
+              </button>
+            )}
             <button
               onClick={onClose}
-              className="py-3 px-5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs transition-colors"
+              className="py-3 px-5 rounded-xl bg-gray-100 hover:bg-gray-200 text-gray-700 font-semibold text-xs transition-colors cursor-pointer w-full"
             >
               Close
             </button>
