@@ -554,8 +554,8 @@ class _RoleSelectScreenState extends State<RoleSelectScreen> {
                         SizedBox(width: 8),
                         Expanded(
                           child: Text(
-                            '🌐 4G/5G Cloud Tunnel (routewise-live.loca.lt)',
-                            style: TextStyle(color: Colors.blueAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                            '🌐 4G/5G Cloud Tunnel (${AppConstants.cloudBackendApi})',
+                            style: const TextStyle(color: Colors.blueAccent, fontSize: 11, fontWeight: FontWeight.bold),
                           ),
                         ),
                       ],

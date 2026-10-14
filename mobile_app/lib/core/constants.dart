@@ -14,8 +14,8 @@ class AppConstants {
   static const String supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY';
 
   // Cloud Public Tunnel API (Accessible from anywhere on 4G / 5G / cellular mobile data)
-  static const String cloudBackendApi = 'https://routewise-live.loca.lt/api/v1';
-  static const String fallbackCloudApi = 'https://routewise-prajwal.loca.lt/api/v1';
+  static const String cloudBackendApi = 'https://angry-cougar-19.loca.lt/api/v1';
+  static const String fallbackCloudApi = 'https://routewise-live.loca.lt/api/v1';
 
   // Dynamic override URL (can be customized by user directly inside app settings)
   static String customBackendApi = '';
