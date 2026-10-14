@@ -200,6 +200,10 @@ class DeliveryService {
     final backendPayload = {
       'id': orderId,
       'restaurant_id': restaurant.id,
+      'restaurant_name': restaurant.name,
+      'restaurant_address': restaurant.address,
+      'restaurant_latitude': restaurant.latitude,
+      'restaurant_longitude': restaurant.longitude,
       'customer_name': customerName,
       'customer_address': customerAddress,
       'customer_latitude': customerLat,
@@ -216,7 +220,7 @@ class DeliveryService {
           Uri.parse('$base/food/orders'),
           headers: _apiHeaders,
           body: jsonEncode(backendPayload),
-        ).timeout(const Duration(milliseconds: 1500));
+        ).timeout(const Duration(milliseconds: 3000));
         if (res.statusCode == 200 || res.statusCode == 201) break;
       } catch (_) {}
     }
@@ -357,9 +361,11 @@ class DeliveryService {
     ),
   ];
 
-  // Candidate backend API roots (Public Cloud Tunnel, USB ADB loopback, LAN IP)
-  static const List<String> _apiBases = [
+  // Candidate backend API roots (Dynamic custom URL, Public Cloud Tunnel, USB ADB loopback, LAN IP)
+  List<String> get _apiBases => [
+    if (AppConstants.customBackendApi.trim().isNotEmpty) AppConstants.customBackendApi.trim(),
     AppConstants.cloudBackendApi,
+    AppConstants.fallbackCloudApi,
     AppConstants.localLoopbackApi,
     AppConstants.localBackendApi,
   ];
@@ -370,6 +376,49 @@ class DeliveryService {
     'User-Agent': 'RouteWiseMobile/1.0',
   };
 
+  // Register physical phone GPS of Friend 2 as the Live Kitchen station
+  Future<bool> registerKitchenLocation({
+    required String name,
+    required double latitude,
+    required double longitude,
+    String address = '',
+  }) async {
+    for (final base in _apiBases) {
+      try {
+        final res = await http.post(
+          Uri.parse('$base/food/kitchen/location'),
+          headers: _apiHeaders,
+          body: jsonEncode({
+            'name': name,
+            'latitude': latitude,
+            'longitude': longitude,
+            'address': address,
+          }),
+        ).timeout(const Duration(milliseconds: 3000));
+        if (res.statusCode == 200) {
+          return true;
+        }
+      } catch (_) {}
+    }
+    return false;
+  }
+
+  // Fetch current live kitchen location
+  Future<Map<String, dynamic>?> getKitchenLocation() async {
+    for (final base in _apiBases) {
+      try {
+        final res = await http
+            .get(Uri.parse('$base/food/kitchen/location'), headers: _apiHeaders)
+            .timeout(const Duration(milliseconds: 2500));
+        if (res.statusCode == 200) {
+          final data = jsonDecode(res.body);
+          return data['kitchen'] as Map<String, dynamic>?;
+        }
+      } catch (_) {}
+    }
+    return null;
+  }
+
   // Fetch real restaurants
   Future<List<Restaurant>> getRestaurants() async {
     // 1. Try backend APIs with snappy timeout
@@ -377,7 +426,7 @@ class DeliveryService {
       try {
         final response = await http
             .get(Uri.parse('$base/food/restaurants'), headers: _apiHeaders)
-            .timeout(const Duration(milliseconds: 1500));
+            .timeout(const Duration(milliseconds: 2500));
 
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
@@ -410,14 +459,11 @@ class DeliveryService {
     return defaultRestaurants;
   }
 
-  // Fetch active order
-  Future<FoodOrder?> getActiveOrder([String? orderId]) async {
-    // 0. Use active local order if matching or default
-    if (_activeOrder != null && (orderId == null || orderId == _activeOrder!.id)) {
-      return _activeOrder;
-    }
-    // 1. Try Local PC Dashboard API
+  // Fetch active order with real-time cloud backend priority
+  Future<FoodOrder?> getActiveOrder([String? orderId, bool forceRefresh = false]) async {
     final idParam = orderId ?? '';
+
+    // 1. Query remote backend first (so Kitchen & Rider immediately receive Customer's real order)
     for (final base in _apiBases) {
       try {
         final url = idParam.isNotEmpty
@@ -426,16 +472,18 @@ class DeliveryService {
 
         final response = await http
             .get(Uri.parse(url), headers: _apiHeaders)
-            .timeout(const Duration(milliseconds: 1500));
+            .timeout(const Duration(milliseconds: 2500));
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
           if (idParam.isNotEmpty) {
             final order = FoodOrder.fromJson(data);
             _activeOrder = order;
+            _orderController.add(order);
             return order;
           } else if (data['orders'] is List && (data['orders'] as List).isNotEmpty) {
             final order = FoodOrder.fromJson((data['orders'] as List).first);
             _activeOrder = order;
+            _orderController.add(order);
             return order;
           }
         }
@@ -470,7 +518,12 @@ class DeliveryService {
       }
     }
 
-    // 2. Default Demo Order (Kharghar Route with high-precision waypoints)
+    // 2. Return current in-memory active order if network was unreachable
+    if (_activeOrder != null && (orderId == null || orderId == _activeOrder!.id)) {
+      return _activeOrder;
+    }
+
+    // 3. Default Demo Order (Kharghar Route with high-precision waypoints)
     _activeOrder = FoodOrder(
       id: orderId ?? 'ZOM-84920',
       customerName: 'Pooja Verma',

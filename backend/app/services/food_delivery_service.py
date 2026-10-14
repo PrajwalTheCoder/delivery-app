@@ -424,6 +424,15 @@ DELIVERY_RIDERS = [
 # Active food orders store (in-memory with seed default)
 LIVE_ORDERS: Dict[str, Dict[str, Any]] = {}
 
+# Live Kitchen Location registered from Friend 2's mobile device
+LIVE_KITCHEN_LOCATION: Dict[str, Any] = {
+    "name": "Friend's Live Kitchen",
+    "latitude": None,
+    "longitude": None,
+    "address": "Waiting for Kitchen Phone GPS...",
+    "updated_at": 0
+}
+
 def get_local_lan_ip() -> str:
     """Detects host machine's local Wi-Fi or LAN IP address for cross-device mobile pairing."""
     try:
@@ -436,6 +445,23 @@ def get_local_lan_ip() -> str:
         return "127.0.0.1"
 
 class FoodDeliveryService:
+    @staticmethod
+    def register_kitchen(name: str, latitude: float, longitude: float, address: str = "") -> Dict[str, Any]:
+        """Registers the real-time physical phone GPS of Friend 2 as the Live Kitchen station."""
+        global LIVE_KITCHEN_LOCATION
+        LIVE_KITCHEN_LOCATION = {
+            "name": name or "Friend's Live Kitchen",
+            "latitude": float(latitude),
+            "longitude": float(longitude),
+            "address": address or f"Live Kitchen ({latitude:.4f}, {longitude:.4f})",
+            "updated_at": time.time()
+        }
+        return LIVE_KITCHEN_LOCATION
+
+    @staticmethod
+    def get_kitchen_location() -> Dict[str, Any]:
+        return LIVE_KITCHEN_LOCATION
+
     @staticmethod
     def get_restaurants(
         user_lat: Optional[float] = None,
@@ -453,6 +479,81 @@ class FoodDeliveryService:
         # Default center if no coordinates provided (Kharghar Central Depot)
         ref_lat = user_lat if user_lat is not None else 19.0434
         ref_lon = user_lon if user_lon is not None else 73.0683
+
+        # 0. If Friend 2 has registered a live Kitchen phone location, show it at the very top!
+        if LIVE_KITCHEN_LOCATION.get("latitude") is not None:
+            k_lat = float(LIVE_KITCHEN_LOCATION["latitude"])
+            k_lon = float(LIVE_KITCHEN_LOCATION["longitude"])
+            k_dist = haversine_distance((ref_lat, ref_lon), (k_lat, k_lon)) / 1000.0
+            results.append({
+                "id": "rest-live-kitchen",
+                "name": f"🍳 {LIVE_KITCHEN_LOCATION['name']}",
+                "tagline": "Real-time Kitchen Station from Friend's Phone GPS",
+                "cuisines": ["Fresh Kitchen", "Biryani", "Burgers", "Chai", "Fast Food"],
+                "rating": 4.95,
+                "rating_count": "Live",
+                "cost_for_two": 250,
+                "prep_time_minutes": 10,
+                "is_veg": False,
+                "address": LIVE_KITCHEN_LOCATION["address"],
+                "locality": "Friend's Real Location",
+                "city": "Navi Mumbai",
+                "latitude": k_lat,
+                "longitude": k_lon,
+                "phone": "+91 99200 11223",
+                "image": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800&auto=format&fit=crop&q=80",
+                "badge": "⚡ Live Phone GPS",
+                "discount": "FLAT 30% OFF",
+                "distance_km": round(k_dist, 1),
+                "estimated_delivery_mins": max(8, 8 + int(k_dist * 3.5)),
+                "delivery_fee": 25 if k_dist < 3.0 else int(25 + (k_dist - 3.0) * 8),
+                "menu": [
+                    {
+                        "id": "item-live-1",
+                        "name": "Special Dum Gosht Biryani",
+                        "category": "Biryani",
+                        "price": 349,
+                        "is_veg": False,
+                        "rating": 4.9,
+                        "description": "Hot Basmati rice infused with saffron and tender spices.",
+                        "image": "https://images.unsplash.com/photo-1563379091339-03b21ab4a4f8?w=500",
+                        "bestseller": True
+                    },
+                    {
+                        "id": "item-live-2",
+                        "name": "Crispy Paneer Burger",
+                        "category": "Burgers",
+                        "price": 189,
+                        "is_veg": True,
+                        "rating": 4.7,
+                        "description": "Crispy herb patty with melted cheddar and chipotle mayo.",
+                        "image": "https://images.unsplash.com/photo-1568901346375-23c9450c58cd?w=500",
+                        "bestseller": True
+                    },
+                    {
+                        "id": "item-live-3",
+                        "name": "Garlic Breadsticks with Dip",
+                        "category": "Sides",
+                        "price": 129,
+                        "is_veg": True,
+                        "rating": 4.8,
+                        "description": "Freshly baked herb breadsticks with creamy garlic dip.",
+                        "image": "https://images.unsplash.com/photo-1573821663912-569905455b1c?w=500",
+                        "bestseller": False
+                    },
+                    {
+                        "id": "item-live-4",
+                        "name": "Hot Ginger Masala Chai",
+                        "category": "Beverages",
+                        "price": 69,
+                        "is_veg": True,
+                        "rating": 4.9,
+                        "description": "Freshly brewed spiced tea with crushed ginger and cardamom.",
+                        "image": "https://images.unsplash.com/photo-1571934811356-5cc061b6821f?w=500",
+                        "bestseller": True
+                    }
+                ]
+            })
 
         for rest in REAL_RESTAURANTS:
             # Category / Veg filter
@@ -484,8 +585,8 @@ class FoodDeliveryService:
             rest_copy["delivery_fee"] = 25 if dist_km < 3.0 else int(25 + (dist_km - 3.0) * 8)
             results.append(rest_copy)
 
-        # Sort by proximity by default
-        results.sort(key=lambda r: r["distance_km"])
+        # Sort with Live Kitchen prioritized first, then by proximity
+        results.sort(key=lambda r: (0 if r["id"] == "rest-live-kitchen" else 1, r["distance_km"]))
         return results
 
     @staticmethod
@@ -503,9 +604,26 @@ class FoodDeliveryService:
         """
         restaurant_id = order_data.get("restaurant_id", "")
         restaurant = FoodDeliveryService.get_restaurant_by_id(restaurant_id)
-        if not restaurant:
-            # Fallback to first restaurant
+        if not restaurant and LIVE_KITCHEN_LOCATION.get("latitude") is not None and restaurant_id == "rest-live-kitchen":
+            restaurant = {
+                "id": "rest-live-kitchen",
+                "name": f"🍳 {LIVE_KITCHEN_LOCATION['name']}",
+                "address": LIVE_KITCHEN_LOCATION["address"],
+                "latitude": float(LIVE_KITCHEN_LOCATION["latitude"]),
+                "longitude": float(LIVE_KITCHEN_LOCATION["longitude"]),
+                "prep_time_minutes": 10,
+                "phone": "+91 99200 11223",
+                "image": "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800",
+                "menu": []
+            }
+        elif not restaurant:
             restaurant = REAL_RESTAURANTS[0]
+
+        # Use client-specified real restaurant/kitchen coordinates if provided
+        rest_lat = float(order_data.get("restaurant_latitude") or restaurant["latitude"])
+        rest_lon = float(order_data.get("restaurant_longitude") or restaurant["longitude"])
+        rest_name = str(order_data.get("restaurant_name") or restaurant["name"])
+        rest_addr = str(order_data.get("restaurant_address") or restaurant["address"])
 
         customer_lat = float(order_data.get("customer_latitude", 19.0345))
         customer_lon = float(order_data.get("customer_longitude", 73.0678))
@@ -514,18 +632,26 @@ class FoodDeliveryService:
         customer_address = order_data.get("customer_address", "Flat 402, Royal Palms, Sector 7, Kharghar")
 
         items = order_data.get("items", [])
-        if not items:
+        if not items and restaurant.get("menu"):
             # Add default bestseller from restaurant
             items = [{
                 "id": restaurant["menu"][0]["id"],
                 "name": restaurant["menu"][0]["name"],
                 "price": restaurant["menu"][0]["price"],
                 "quantity": 1,
-                "is_veg": restaurant["menu"][0]["is_veg"]
+                "is_veg": restaurant["menu"][0].get("is_veg", False)
+            }]
+        elif not items:
+            items = [{
+                "id": "item-special",
+                "name": "Hot Fresh Meal",
+                "price": 249,
+                "quantity": 1,
+                "is_veg": True
             }]
 
         item_total = sum(i.get("price", 0) * i.get("quantity", 1) for i in items)
-        dist_km = haversine_distance((restaurant["latitude"], restaurant["longitude"]), (customer_lat, customer_lon)) / 1000.0
+        dist_km = haversine_distance((rest_lat, rest_lon), (customer_lat, customer_lon)) / 1000.0
         delivery_fee = 25 if dist_km < 3.0 else int(25 + (dist_km - 3.0) * 8)
         platform_fee = 6
         taxes = int(item_total * 0.05)
@@ -535,11 +661,17 @@ class FoodDeliveryService:
         delivery_otp = str(order_data.get("delivery_otp") or order_data.get("otp") or random.randint(1000, 9999))
         order_id = str(order_data.get("id") or order_data.get("order_id") or f"ZOM-{int(time.time()) % 100000:05d}")
 
-        # Assign delivery rider near restaurant
+        # Assign delivery rider
         rider = random.choice(DELIVERY_RIDERS)
-        # Driver starts slightly offset from restaurant (300-600m away)
-        driver_lat = restaurant["latitude"] + random.uniform(-0.004, 0.004)
-        driver_lon = restaurant["longitude"] + random.uniform(-0.004, 0.004)
+        # If client passed driver's starting GPS (e.g. from physical device), start there!
+        driver_start_lat = order_data.get("driver_latitude")
+        driver_start_lon = order_data.get("driver_longitude")
+        if driver_start_lat is not None and driver_start_lon is not None:
+            driver_lat = float(driver_start_lat)
+            driver_lon = float(driver_start_lon)
+        else:
+            driver_lat = rest_lat + random.uniform(-0.002, 0.002)
+            driver_lon = rest_lon + random.uniform(-0.002, 0.002)
 
         # Use client-queried OSRM road geometry if provided, otherwise query server-side OSRM
         client_geom = order_data.get("road_geometry")
@@ -549,7 +681,7 @@ class FoodDeliveryService:
             routing_service = RoutingService()
             route_res = routing_service.get_route(
                 coordinates=[
-                    (restaurant["latitude"], restaurant["longitude"]),
+                    (rest_lat, rest_lon),
                     (customer_lat, customer_lon)
                 ],
                 overview="full"
@@ -558,8 +690,8 @@ class FoodDeliveryService:
             if not geometry:
                 # 5-step fallback
                 geometry = [
-                    [restaurant["latitude"], restaurant["longitude"]],
-                    [round((restaurant["latitude"] + customer_lat) / 2, 5), round((restaurant["longitude"] + customer_lon) / 2, 5)],
+                    [rest_lat, rest_lon],
+                    [round((rest_lat + customer_lat) / 2, 5), round((rest_lon + customer_lon) / 2, 5)],
                     [customer_lat, customer_lon]
                 ]
 
@@ -582,13 +714,13 @@ class FoodDeliveryService:
                 "longitude": customer_lon
             },
             "restaurant": {
-                "id": restaurant["id"],
-                "name": restaurant["name"],
-                "address": restaurant["address"],
-                "phone": restaurant["phone"],
-                "image": restaurant["image"],
-                "latitude": restaurant["latitude"],
-                "longitude": restaurant["longitude"]
+                "id": restaurant["id"] if restaurant else "rest-live-kitchen",
+                "name": rest_name,
+                "address": rest_addr,
+                "phone": restaurant.get("phone", "+91 99200 11223") if restaurant else "+91 99200 11223",
+                "image": restaurant.get("image", "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800") if restaurant else "https://images.unsplash.com/photo-1555396273-367ea4eb4db5?w=800",
+                "latitude": rest_lat,
+                "longitude": rest_lon
             },
             "rider": {
                 "id": rider["id"],
@@ -656,9 +788,9 @@ class FoodDeliveryService:
 
     @staticmethod
     def get_all_orders() -> List[Dict[str, Any]]:
-        # Return recent orders sorted newest first
+        # Return recent orders with real device orders prioritized newest first
         orders = list(LIVE_ORDERS.values())
-        orders.sort(key=lambda o: o.get("created_at", ""), reverse=True)
+        orders.sort(key=lambda o: (1 if o.get("is_real_mode") else 0, o.get("created_at", "")), reverse=True)
         return orders
 
     @staticmethod

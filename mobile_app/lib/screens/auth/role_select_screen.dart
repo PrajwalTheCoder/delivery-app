@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../core/constants.dart';
 import '../../models/models.dart';
 import '../customer/customer_home_screen.dart';
 import '../driver/driver_screen.dart';
@@ -142,23 +143,51 @@ class RoleSelectScreen extends StatelessWidget {
 
               const SizedBox(height: 24),
 
-              // Supabase & PC Dashboard Connection Info
+              // RouteWise 4G Cloud Synchronization Card
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
                 decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.04),
+                  color: Colors.white.withOpacity(0.05),
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: Colors.white.withOpacity(0.1)),
                 ),
-                child: const Row(
+                child: Row(
                   children: [
-                    Icon(Icons.wifi_tethering, color: Color(0xFFFC8019), size: 20),
-                    SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Connected to PC Dashboard on C (http://192.168.0.101:5173) & Supabase Realtime.',
-                        style: TextStyle(fontSize: 11, color: Colors.grey),
+                    Container(
+                      width: 10,
+                      height: 10,
+                      decoration: const BoxDecoration(
+                        color: Color(0xFF10B981),
+                        shape: BoxShape.circle,
+                        boxShadow: [
+                          BoxShadow(color: Color(0xFF10B981), blurRadius: 6),
+                        ],
                       ),
+                    ),
+                    const SizedBox(width: 10),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const Text(
+                            'RouteWise 4G/5G Cloud Sync',
+                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                          ),
+                          Text(
+                            AppConstants.customBackendApi.isNotEmpty
+                                ? AppConstants.customBackendApi
+                                : AppConstants.cloudBackendApi,
+                            style: const TextStyle(fontSize: 10, color: Colors.grey),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ),
+                    IconButton(
+                      icon: const Icon(Icons.settings, color: Colors.white70, size: 18),
+                      onPressed: () => _showServerSettingsDialog(context),
+                      tooltip: 'Configure Cloud URL',
                     ),
                   ],
                 ),
@@ -261,6 +290,72 @@ class RoleSelectScreen extends StatelessWidget {
             const Icon(Icons.chevron_right, color: Colors.grey),
           ],
         ),
+      ),
+    );
+  }
+
+  void _showServerSettingsDialog(BuildContext context) {
+    final controller = TextEditingController(
+      text: AppConstants.customBackendApi.isNotEmpty
+          ? AppConstants.customBackendApi
+          : AppConstants.cloudBackendApi,
+    );
+
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        backgroundColor: const Color(0xFF1E1E1E),
+        title: const Row(
+          children: [
+            Icon(Icons.cloud_sync, color: Color(0xFFFC8019)),
+            SizedBox(width: 10),
+            Text('Cloud Server Settings', style: TextStyle(color: Colors.white, fontSize: 16)),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Public Backend Tunnel URL (for 4G/5G testing across different phones):',
+              style: TextStyle(color: Colors.grey, fontSize: 12),
+            ),
+            const SizedBox(height: 12),
+            TextField(
+              controller: controller,
+              style: const TextStyle(color: Colors.white, fontSize: 13),
+              decoration: InputDecoration(
+                filled: true,
+                fillColor: Colors.black26,
+                hintText: 'https://routewise-live.loca.lt/api/v1',
+                hintStyle: const TextStyle(color: Colors.grey),
+                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Default Active Tunnel: https://routewise-live.loca.lt/api/v1',
+              style: TextStyle(color: Colors.white54, fontSize: 10),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              AppConstants.customBackendApi = '';
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Reset Default', style: TextStyle(color: Colors.grey)),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFC8019)),
+            onPressed: () {
+              AppConstants.customBackendApi = controller.text.trim();
+              Navigator.of(ctx).pop();
+            },
+            child: const Text('Save URL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+          ),
+        ],
       ),
     );
   }

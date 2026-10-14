@@ -155,6 +155,37 @@ def device_info():
     info = FoodDeliveryService.get_device_info()
     return jsonify(info), 200
 
+@food_bp.route("/kitchen/location", methods=["GET", "POST"])
+def kitchen_location_handler():
+    """
+    Kitchen Phone GPS Sync Endpoint:
+    Allows Friend 2's mobile device to register its real-time GPS coordinates as the Live Kitchen station.
+    """
+    if request.method == "POST":
+        body = request.get_json() or {}
+        name = body.get("name") or body.get("kitchen_name", "Friend's Live Kitchen")
+        lat = body.get("latitude") or body.get("lat")
+        lon = body.get("longitude") or body.get("lon")
+        addr = body.get("address", "")
+        if lat is None or lon is None:
+            return jsonify({"error": "Latitude and longitude are required."}), 400
+        try:
+            loc = FoodDeliveryService.register_kitchen(
+                name=str(name),
+                latitude=float(lat),
+                longitude=float(lon),
+                address=str(addr)
+            )
+            return jsonify({
+                "message": "Kitchen location registered successfully!",
+                "kitchen": loc
+            }), 200
+        except (ValueError, TypeError) as e:
+            return jsonify({"error": f"Invalid coordinates: {e}"}), 400
+    else:
+        loc = FoodDeliveryService.get_kitchen_location()
+        return jsonify({"kitchen": loc}), 200
+
 @food_bp.route("/seed-demo", methods=["POST"])
 def seed_demo():
     FoodDeliveryService.seed_demo_order_if_empty()

@@ -30,6 +30,7 @@ class _DriverScreenState extends State<DriverScreen> {
   int _simStep = 0;
   bool _isAutoDriving = false;
   Timer? _autoDriveTimer;
+  Timer? _pollTimer;
 
   // OTP Verification
   final TextEditingController _otpController = TextEditingController();
@@ -39,14 +40,21 @@ class _DriverScreenState extends State<DriverScreen> {
   @override
   void initState() {
     super.initState();
+    _initDriverGps();
     _fetchOrder();
     _orderSub = _service.onOrderUpdate.listen((order) {
       if (mounted) setState(() => _activeOrder = order);
+    });
+
+    // Auto-poll every 2.5s for real-time customer and kitchen updates
+    _pollTimer = Timer.periodic(const Duration(milliseconds: 2500), (_) {
+      _fetchOrder(silent: true);
     });
   }
 
   @override
   void dispose() {
+    _pollTimer?.cancel();
     _positionStream?.cancel();
     _autoDriveTimer?.cancel();
     _orderSub?.cancel();
@@ -54,8 +62,61 @@ class _DriverScreenState extends State<DriverScreen> {
     super.dispose();
   }
 
-  Future<void> _fetchOrder() async {
-    final order = await _service.getActiveOrder();
+  Future<void> _initDriverGps() async {
+    try {
+      LocationPermission permission = await Geolocator.checkPermission();
+      if (permission == LocationPermission.denied) {
+        permission = await Geolocator.requestPermission();
+      }
+      if (permission == LocationPermission.whileInUse || permission == LocationPermission.always) {
+        final pos = await Geolocator.getCurrentPosition(
+          desiredAccuracy: LocationAccuracy.high,
+        );
+        if (mounted) {
+          setState(() {
+            _currentPosition = pos;
+            _gpsActive = true;
+          });
+        }
+        _startGpsStream();
+      }
+    } catch (_) {}
+  }
+
+  void _startGpsStream() {
+    _positionStream?.cancel();
+    _positionStream = Geolocator.getPositionStream(
+      locationSettings: const LocationSettings(
+        accuracy: LocationAccuracy.high,
+        distanceFilter: 2, // Update every 2 meters
+      ),
+    ).listen((Position position) {
+      if (mounted) {
+        setState(() => _currentPosition = position);
+      }
+
+      if (_activeOrder != null) {
+        _service.updateDriverGpsLocation(
+          orderId: _activeOrder!.id,
+          latitude: position.latitude,
+          longitude: position.longitude,
+          heading: position.heading,
+          speed: position.speed * 3.6,
+        );
+      }
+    }, onError: (err) {
+      if (mounted) {
+        setState(() {
+          _gpsError = err.toString();
+          _gpsActive = false;
+        });
+      }
+    });
+  }
+
+  Future<void> _fetchOrder({bool silent = false}) async {
+    if (!silent) setState(() => _loading = true);
+    final order = await _service.getActiveOrder(null, true);
     if (mounted) {
       setState(() {
         _activeOrder = order;
@@ -172,31 +233,7 @@ class _DriverScreenState extends State<DriverScreen> {
       _gpsActive = true;
       _gpsError = null;
     });
-
-    // Start streaming real hardware GPS
-    _positionStream = Geolocator.getPositionStream(
-      locationSettings: const LocationSettings(
-        accuracy: LocationAccuracy.high,
-        distanceFilter: 2, // Update every 2 meters
-      ),
-    ).listen((Position position) {
-      setState(() => _currentPosition = position);
-
-      if (_activeOrder != null) {
-        _service.updateDriverGpsLocation(
-          orderId: _activeOrder!.id,
-          latitude: position.latitude,
-          longitude: position.longitude,
-          heading: position.heading,
-          speed: position.speed * 3.6,
-        );
-      }
-    }, onError: (err) {
-      setState(() {
-        _gpsError = err.toString();
-        _gpsActive = false;
-      });
-    });
+    _startGpsStream();
   }
 
   // Open Native Turn-by-Turn in Google Maps app on phone
