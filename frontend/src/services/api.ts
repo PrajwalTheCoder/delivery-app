@@ -10,16 +10,37 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
     }
   });
 
+  const contentType = res.headers.get('content-type') || '';
+
   if (!res.ok) {
     let errorMsg = `HTTP Error ${res.status}`;
     try {
-      const errData = await res.json();
-      if (errData.error) errorMsg = errData.error;
-      else if (errData.message) errorMsg = errData.message;
+      if (contentType.includes('application/json')) {
+        const errData = await res.json();
+        if (errData.error) errorMsg = errData.error;
+        else if (errData.message) errorMsg = errData.message;
+      } else {
+        const text = await res.text();
+        if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+          errorMsg = `Server returned an HTML error page (HTTP ${res.status}). Verify backend is reachable at http://127.0.0.1:5050.`;
+        }
+      }
     } catch {
-      // Non-JSON response
+      // Ignored
     }
     throw new Error(errorMsg);
+  }
+
+  if (!contentType.includes('application/json')) {
+    const text = await res.text();
+    if (text.includes('<!DOCTYPE') || text.includes('<html')) {
+      throw new Error(`API returned HTML instead of JSON. Ensure you are accessing the dashboard at http://localhost:5173.`);
+    }
+    try {
+      return JSON.parse(text);
+    } catch {
+      throw new Error(`Invalid response format from server.`);
+    }
   }
 
   return res.json();

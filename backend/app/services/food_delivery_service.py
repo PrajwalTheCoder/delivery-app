@@ -2,6 +2,8 @@ import time
 import socket
 import random
 import uuid
+import os
+import json
 from typing import List, Dict, Any, Optional
 from app.services.routing_service import RoutingService
 from app.utils.geo import haversine_distance
@@ -421,8 +423,30 @@ DELIVERY_RIDERS = [
     }
 ]
 
-# Active food orders store (in-memory with seed default)
-LIVE_ORDERS: Dict[str, Dict[str, Any]] = {}
+# Active food orders store (with persistent disk storage so mobile orders are preserved)
+DATA_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "data")
+ORDERS_FILE = os.path.join(DATA_DIR, "live_orders.json")
+
+def load_orders_from_disk() -> Dict[str, Dict[str, Any]]:
+    try:
+        if os.path.exists(ORDERS_FILE):
+            with open(ORDERS_FILE, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    return data
+    except Exception as e:
+        print(f"[FoodDeliveryService] Error loading orders from disk: {e}")
+    return {}
+
+def save_orders_to_disk():
+    try:
+        os.makedirs(DATA_DIR, exist_ok=True)
+        with open(ORDERS_FILE, "w", encoding="utf-8") as f:
+            json.dump(LIVE_ORDERS, f, indent=2)
+    except Exception as e:
+        print(f"[FoodDeliveryService] Error saving orders to disk: {e}")
+
+LIVE_ORDERS: Dict[str, Dict[str, Any]] = load_orders_from_disk()
 
 # Live Kitchen Location registered from Friend 2's mobile device
 LIVE_KITCHEN_LOCATION: Dict[str, Any] = {
@@ -780,6 +804,7 @@ class FoodDeliveryService:
         }
 
         LIVE_ORDERS[order_id] = order
+        save_orders_to_disk()
         return order
 
     @staticmethod
@@ -823,6 +848,7 @@ class FoodDeliveryService:
                 if not step["timestamp"]:
                     step["timestamp"] = time.strftime("%I:%M %p")
 
+        save_orders_to_disk()
         return order
 
     @staticmethod
@@ -866,6 +892,7 @@ class FoodDeliveryService:
             order["status_title"] = "Rider On The Way"
             order["status_message"] = f"{order['rider']['name']} is en route with your food."
 
+        save_orders_to_disk()
         return order
 
     @staticmethod

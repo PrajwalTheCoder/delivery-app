@@ -154,11 +154,20 @@ export interface AnalyticsSummary {
   overall_savings_percent?: number;
   recent_plans: RoutePlan[];
   recent_activities: {
-    type: 'route_plan' | 'delivery';
+    type: 'route_plan' | 'delivery' | 'food_order';
     title: string;
     description: string;
     timestamp: string;
+    order_id?: string;
+    status?: string;
   }[];
+  live_food_orders?: FoodOrder[];
+  food_stats?: {
+    total: number;
+    pending: number;
+    in_transit: number;
+    completed: number;
+  };
 }
 
 export interface RouteAnalyticsCharts {
