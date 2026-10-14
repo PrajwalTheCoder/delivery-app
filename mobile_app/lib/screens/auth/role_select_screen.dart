@@ -31,8 +31,8 @@ class RoleSelectScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: const Color(0xFF121212),
       body: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 32.0),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
@@ -167,7 +167,7 @@ class RoleSelectScreen extends StatelessWidget {
                 borderColor: const Color(0xFF2E2E2E),
               ),
 
-              const Spacer(),
+              const SizedBox(height: 24),
 
               // Supabase & PC Dashboard Connection Info
               Container(
