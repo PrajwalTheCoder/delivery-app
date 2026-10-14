@@ -291,6 +291,7 @@ export interface FoodOrder {
     id: string;
     name: string;
     address: string;
+    locality?: string;
     phone: string;
     image: string;
     latitude: number;

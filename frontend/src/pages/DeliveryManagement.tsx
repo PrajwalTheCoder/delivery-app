@@ -19,8 +19,7 @@ import {
   CheckCircle2,
   ShieldCheck,
   ShoppingBag,
-  RefreshCw,
-  ExternalLink
+  RefreshCw
 } from 'lucide-react';
 import { api } from '../services/api';
 import type { Delivery, PriorityLevel, DeliveryStatus, FoodOrder } from '../types';
