@@ -1,12 +1,38 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../../core/constants.dart';
 import '../../models/models.dart';
+import '../../services/embedded_server_service.dart';
 import '../customer/customer_home_screen.dart';
 import '../driver/driver_screen.dart';
 import '../kitchen/kitchen_screen.dart';
 
-class RoleSelectScreen extends StatelessWidget {
+class RoleSelectScreen extends StatefulWidget {
   const RoleSelectScreen({super.key});
+
+  @override
+  State<RoleSelectScreen> createState() => _RoleSelectScreenState();
+}
+
+class _RoleSelectScreenState extends State<RoleSelectScreen> {
+  final EmbeddedServerService _serverService = EmbeddedServerService();
+  bool _isHostingServer = false;
+  StreamSubscription<bool>? _serverSub;
+
+  @override
+  void initState() {
+    super.initState();
+    _isHostingServer = _serverService.isRunning;
+    _serverSub = _serverService.onStatusChanged.listen((running) {
+      if (mounted) setState(() => _isHostingServer = running);
+    });
+  }
+
+  @override
+  void dispose() {
+    _serverSub?.cancel();
+    super.dispose();
+  }
 
   void _navigateToRole(BuildContext context, UserRole role) {
     Widget target;
@@ -25,6 +51,49 @@ class RoleSelectScreen extends StatelessWidget {
     Navigator.of(context).push(
       MaterialPageRoute(builder: (_) => target),
     );
+  }
+
+  Future<void> _toggleHostingServer(bool value) async {
+    if (value) {
+      final success = await _serverService.startServer();
+      if (success) {
+        AppConstants.customBackendApi = 'http://127.0.0.1:5050/api/v1';
+        if (mounted) {
+          setState(() => _isHostingServer = true);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              backgroundColor: const Color(0xFF10B981),
+              content: Text(
+                '⚡ Hub Server Active on http://${_serverService.detectedIp}:5050! Zero Laptop Needed.',
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              duration: const Duration(seconds: 4),
+            ),
+          );
+        }
+      } else {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              backgroundColor: Colors.red,
+              content: Text('Failed to bind server port 5050.'),
+            ),
+          );
+        }
+      }
+    } else {
+      await _serverService.stopServer();
+      AppConstants.customBackendApi = '';
+      if (mounted) {
+        setState(() => _isHostingServer = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            backgroundColor: Colors.grey,
+            content: Text('On-device Hub Server Stopped.'),
+          ),
+        );
+      }
+    }
   }
 
   @override
@@ -101,16 +170,15 @@ class RoleSelectScreen extends StatelessWidget {
                 textAlign: TextAlign.center,
               ),
 
-              const SizedBox(height: 32),
+              const SizedBox(height: 28),
 
-              // Role Cards
               _buildRoleCard(
                 context,
                 role: UserRole.customer,
-                title: 'Customer Food App',
-                subtitle: 'Browse real restaurants, order dishes, and track rider live on the road.',
+                title: 'Hungry Customer',
+                subtitle: 'Order from real restaurants or friend\'s live kitchen, track real driver GPS & receive OTP.',
                 badge: 'LIVE MAP & OTP',
-                badgeColor: const Color(0xFF16803D),
+                badgeColor: const Color(0xFF10B981),
                 cardColor: const Color(0xFF1E1E1E),
                 borderColor: const Color(0xFF2E2E2E),
               ),
@@ -143,6 +211,125 @@ class RoleSelectScreen extends StatelessWidget {
 
               const SizedBox(height: 24),
 
+              // ===============================================================
+              // 📱 On-Device Hub Server Card (Zero Laptop Mode)
+              // ===============================================================
+              Container(
+                padding: const EdgeInsets.all(16),
+                decoration: BoxDecoration(
+                  gradient: LinearGradient(
+                    colors: _isHostingServer
+                        ? [const Color(0xFF064E3B), const Color(0xFF065F46)]
+                        : [const Color(0xFF1E1E1E), const Color(0xFF171717)],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
+                  borderRadius: BorderRadius.circular(18),
+                  border: Border.all(
+                    color: _isHostingServer
+                        ? const Color(0xFF10B981)
+                        : Colors.white.withOpacity(0.12),
+                    width: _isHostingServer ? 1.5 : 1.0,
+                  ),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Container(
+                          padding: const EdgeInsets.all(8),
+                          decoration: BoxDecoration(
+                            color: _isHostingServer ? const Color(0xFF10B981) : Colors.white10,
+                            borderRadius: BorderRadius.circular(10),
+                          ),
+                          child: Icon(
+                            _isHostingServer ? Icons.wifi_tethering : Icons.portable_wifi_off,
+                            color: Colors.white,
+                            size: 20,
+                          ),
+                        ),
+                        const SizedBox(width: 12),
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Text(
+                                    '📱 On-Device Hub Server',
+                                    style: TextStyle(
+                                      fontSize: 13,
+                                      fontWeight: FontWeight.bold,
+                                      color: Colors.white,
+                                    ),
+                                  ),
+                                  const SizedBox(width: 6),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                                    decoration: BoxDecoration(
+                                      color: _isHostingServer ? Colors.greenAccent : Colors.orangeAccent,
+                                      borderRadius: BorderRadius.circular(6),
+                                    ),
+                                    child: Text(
+                                      _isHostingServer ? 'ACTIVE' : 'LAPTOP-FREE',
+                                      style: const TextStyle(
+                                        color: Colors.black,
+                                        fontWeight: FontWeight.w900,
+                                        fontSize: 8,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 2),
+                              Text(
+                                _isHostingServer
+                                    ? 'Hosting at http://${_serverService.detectedIp}:5050'
+                                    : 'Run RouteWise server directly on this phone (Zero Laptop)',
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  color: _isHostingServer ? Colors.green.shade200 : Colors.grey,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                        Switch(
+                          value: _isHostingServer,
+                          activeColor: const Color(0xFF10B981),
+                          onChanged: _toggleHostingServer,
+                        ),
+                      ],
+                    ),
+                    if (_isHostingServer) ...[
+                      const SizedBox(height: 12),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.3),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.info_outline, color: Colors.greenAccent, size: 16),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                'Turn on Personal Hotspot! Ask Friend 1 (Customer) and Friend 2 (Kitchen) to join this Wi-Fi.',
+                                style: TextStyle(color: Colors.green.shade100, fontSize: 10),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+
+              const SizedBox(height: 14),
+
               // RouteWise 4G Cloud Synchronization Card
               Container(
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
@@ -156,11 +343,14 @@ class RoleSelectScreen extends StatelessWidget {
                     Container(
                       width: 10,
                       height: 10,
-                      decoration: const BoxDecoration(
-                        color: Color(0xFF10B981),
+                      decoration: BoxDecoration(
+                        color: _isHostingServer ? const Color(0xFF10B981) : const Color(0xFFFC8019),
                         shape: BoxShape.circle,
                         boxShadow: [
-                          BoxShadow(color: Color(0xFF10B981), blurRadius: 6),
+                          BoxShadow(
+                            color: _isHostingServer ? const Color(0xFF10B981) : const Color(0xFFFC8019),
+                            blurRadius: 6,
+                          ),
                         ],
                       ),
                     ),
@@ -169,14 +359,16 @@ class RoleSelectScreen extends StatelessWidget {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          const Text(
-                            'RouteWise 4G/5G Cloud Sync',
-                            style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+                          Text(
+                            _isHostingServer ? 'Current Active Hub: On-Device Hotspot' : 'RouteWise Cloud / Tunnel Sync',
+                            style: const TextStyle(fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
                           ),
                           Text(
                             AppConstants.customBackendApi.isNotEmpty
                                 ? AppConstants.customBackendApi
-                                : AppConstants.cloudBackendApi,
+                                : (_isHostingServer
+                                    ? 'http://${_serverService.detectedIp}:5050/api/v1'
+                                    : AppConstants.cloudBackendApi),
                             style: const TextStyle(fontSize: 10, color: Colors.grey),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
@@ -187,7 +379,7 @@ class RoleSelectScreen extends StatelessWidget {
                     IconButton(
                       icon: const Icon(Icons.settings, color: Colors.white70, size: 18),
                       onPressed: () => _showServerSettingsDialog(context),
-                      tooltip: 'Configure Cloud URL',
+                      tooltip: 'Configure Backend URL',
                     ),
                   ],
                 ),
@@ -220,7 +412,7 @@ class RoleSelectScreen extends StatelessWidget {
           border: Border.all(color: borderColor),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.3),
+              color: Colors.black.withOpacity(0.4),
               blurRadius: 10,
               offset: const Offset(0, 4),
             ),
@@ -228,45 +420,27 @@ class RoleSelectScreen extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Container(
-              width: 50,
-              height: 50,
-              decoration: BoxDecoration(
-                color: Colors.white.withOpacity(0.06),
-                borderRadius: BorderRadius.circular(16),
-              ),
-              child: Center(
-                child: Text(
-                  role.iconEmoji,
-                  style: const TextStyle(fontSize: 24),
-                ),
-              ),
-            ),
-            const SizedBox(width: 16),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Row(
                     children: [
-                      Flexible(
-                        child: Text(
-                          title,
-                          style: const TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.white,
-                          ),
-                          overflow: TextOverflow.ellipsis,
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.bold,
+                          color: Colors.white,
                         ),
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
                         decoration: BoxDecoration(
-                          color: badgeColor.withOpacity(0.2),
+                          color: badgeColor.withOpacity(0.18),
                           borderRadius: BorderRadius.circular(6),
-                          border: Border.all(color: badgeColor.withOpacity(0.5)),
+                          border: Border.all(color: badgeColor.withOpacity(0.4)),
                         ),
                         child: Text(
                           badge,
@@ -303,59 +477,159 @@ class RoleSelectScreen extends StatelessWidget {
 
     showDialog(
       context: context,
-      builder: (ctx) => AlertDialog(
-        backgroundColor: const Color(0xFF1E1E1E),
-        title: const Row(
-          children: [
-            Icon(Icons.cloud_sync, color: Color(0xFFFC8019)),
-            SizedBox(width: 10),
-            Text('Cloud Server Settings', style: TextStyle(color: Colors.white, fontSize: 16)),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          backgroundColor: const Color(0xFF1E1E1E),
+          title: const Row(
+            children: [
+              Icon(Icons.cloud_sync, color: Color(0xFFFC8019)),
+              SizedBox(width: 10),
+              Text('Connection & Server Setup', style: TextStyle(color: Colors.white, fontSize: 16)),
+            ],
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  'Quick 1-Tap Presets:',
+                  style: TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+
+                // Preset 1: Android Hotspot Host
+                InkWell(
+                  onTap: () {
+                    setDialogState(() {
+                      controller.text = 'http://192.168.43.1:5050/api/v1';
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: const Color(0xFF10B981).withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: const Color(0xFF10B981).withOpacity(0.3)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.wifi_tethering, color: Color(0xFF10B981), size: 16),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '📱 Friend\'s Hotspot Hub (192.168.43.1:5050)',
+                            style: TextStyle(color: Color(0xFF10B981), fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+
+                // Preset 2: Cloud Tunnel
+                InkWell(
+                  onTap: () {
+                    setDialogState(() {
+                      controller.text = AppConstants.cloudBackendApi;
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.blue.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.blue.withOpacity(0.3)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.cloud_outlined, color: Colors.blueAccent, size: 16),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '🌐 4G/5G Cloud Tunnel (routewise-live.loca.lt)',
+                            style: TextStyle(color: Colors.blueAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 6),
+
+                // Preset 3: Local Host / Loopback
+                InkWell(
+                  onTap: () {
+                    setDialogState(() {
+                      controller.text = 'http://127.0.0.1:5050/api/v1';
+                    });
+                  },
+                  borderRadius: BorderRadius.circular(10),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: Colors.purple.withOpacity(0.15),
+                      borderRadius: BorderRadius.circular(10),
+                      border: Border.all(color: Colors.purple.withOpacity(0.3)),
+                    ),
+                    child: const Row(
+                      children: [
+                        Icon(Icons.phone_android, color: Colors.purpleAccent, size: 16),
+                        SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            '🏠 This Phone Server (127.0.0.1:5050)',
+                            style: TextStyle(color: Colors.purpleAccent, fontSize: 11, fontWeight: FontWeight.bold),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(height: 14),
+                const Text(
+                  'Or enter custom server URL:',
+                  style: TextStyle(color: Colors.grey, fontSize: 11),
+                ),
+                const SizedBox(height: 6),
+                TextField(
+                  controller: controller,
+                  style: const TextStyle(color: Colors.white, fontSize: 12),
+                  decoration: InputDecoration(
+                    filled: true,
+                    fillColor: Colors.black26,
+                    hintText: 'http://192.168.43.1:5050/api/v1',
+                    hintStyle: const TextStyle(color: Colors.grey),
+                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () {
+                AppConstants.customBackendApi = '';
+                setState(() {});
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Reset', style: TextStyle(color: Colors.grey)),
+            ),
+            ElevatedButton(
+              style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFC8019)),
+              onPressed: () {
+                AppConstants.customBackendApi = controller.text.trim();
+                setState(() {});
+                Navigator.of(ctx).pop();
+              },
+              child: const Text('Save & Connect', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+            ),
           ],
         ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              'Public Backend Tunnel URL (for 4G/5G testing across different phones):',
-              style: TextStyle(color: Colors.grey, fontSize: 12),
-            ),
-            const SizedBox(height: 12),
-            TextField(
-              controller: controller,
-              style: const TextStyle(color: Colors.white, fontSize: 13),
-              decoration: InputDecoration(
-                filled: true,
-                fillColor: Colors.black26,
-                hintText: 'https://routewise-live.loca.lt/api/v1',
-                hintStyle: const TextStyle(color: Colors.grey),
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-              ),
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'Default Active Tunnel: https://routewise-live.loca.lt/api/v1',
-              style: TextStyle(color: Colors.white54, fontSize: 10),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              AppConstants.customBackendApi = '';
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('Reset Default', style: TextStyle(color: Colors.grey)),
-          ),
-          ElevatedButton(
-            style: ElevatedButton.styleFrom(backgroundColor: const Color(0xFFFC8019)),
-            onPressed: () {
-              AppConstants.customBackendApi = controller.text.trim();
-              Navigator.of(ctx).pop();
-            },
-            child: const Text('Save URL', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-          ),
-        ],
       ),
     );
   }

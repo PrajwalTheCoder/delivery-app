@@ -171,9 +171,9 @@ class DeliveryService {
       restaurantName: restaurant.name,
       restaurantLat: restaurant.latitude,
       restaurantLon: restaurant.longitude,
-      status: 'out_for_delivery',
-      statusTitle: 'Rider On The Way',
-      statusMessage: 'Rider has collected your order and is moving on the road.',
+      status: 'placed',
+      statusTitle: 'Order Placed',
+      statusMessage: '${restaurant.name} has received your order.',
       deliveryOtp: realMode ? otp : '4829',
       totalAmount: grandTotal,
       driverName: 'Ramesh Kumar',
@@ -209,6 +209,7 @@ class DeliveryService {
       'customer_latitude': customerLat,
       'customer_longitude': customerLon,
       'delivery_otp': newOrder.deliveryOtp,
+      'status': 'placed',
       'items': orderItems,
       'is_real_mode': realMode,
       'road_geometry': geom,
@@ -361,9 +362,11 @@ class DeliveryService {
     ),
   ];
 
-  // Candidate backend API roots (Dynamic custom URL, Public Cloud Tunnel, USB ADB loopback, LAN IP)
+  // Candidate backend API roots (Dynamic custom URL, On-Device Hub, Personal Hotspot, Public Cloud Tunnel, USB ADB loopback, LAN IP)
   List<String> get _apiBases => [
     if (AppConstants.customBackendApi.trim().isNotEmpty) AppConstants.customBackendApi.trim(),
+    'http://127.0.0.1:5050/api/v1',
+    'http://192.168.43.1:5050/api/v1',
     AppConstants.cloudBackendApi,
     AppConstants.fallbackCloudApi,
     AppConstants.localLoopbackApi,

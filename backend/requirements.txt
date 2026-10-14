@@ -5,3 +5,4 @@ networkx==3.7
 numpy>=2.0.0
 requests>=2.31.0
 pytest>=9.0.0
+gunicorn>=21.2.0
