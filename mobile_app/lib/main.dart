@@ -1,3 +1,4 @@
+import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'core/constants.dart';
@@ -7,7 +8,27 @@ import 'services/delivery_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Initialize Supabase if valid URL provided
+  // 1. Initialize Firebase if configured
+  try {
+    if (!AppConstants.firebaseApiKey.contains('YOUR_FIREBASE') &&
+        !AppConstants.firebaseProjectId.contains('YOUR_FIREBASE')) {
+      await Firebase.initializeApp(
+        options: const FirebaseOptions(
+          apiKey: AppConstants.firebaseApiKey,
+          appId: AppConstants.firebaseAppId,
+          messagingSenderId: AppConstants.firebaseMessagingSenderId,
+          projectId: AppConstants.firebaseProjectId,
+          storageBucket: AppConstants.firebaseStorageBucket,
+        ),
+      );
+      DeliveryService().initFirebase();
+      debugPrint('🔥 Firebase initialized successfully');
+    }
+  } catch (e) {
+    debugPrint('Firebase init note: $e');
+  }
+
+  // 2. Initialize Supabase if configured (alternative)
   try {
     if (AppConstants.supabaseUrl.startsWith('https://') &&
         !AppConstants.supabaseUrl.contains('YOUR_PROJECT_ID')) {

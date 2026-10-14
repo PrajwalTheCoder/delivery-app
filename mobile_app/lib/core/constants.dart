@@ -1,6 +1,15 @@
 class AppConstants {
-  // Supabase Configuration
-  // Replace these with your Supabase Project URL and Anon Key from Project Settings -> API
+  // ===========================================================================
+  // 🔥 Firebase Cloud Firestore Configuration
+  // Get these from: Firebase Console -> Project Settings -> General -> Web App
+  // ===========================================================================
+  static const String firebaseApiKey = 'YOUR_FIREBASE_API_KEY';
+  static const String firebaseAppId = 'YOUR_FIREBASE_APP_ID';
+  static const String firebaseProjectId = 'YOUR_FIREBASE_PROJECT_ID';
+  static const String firebaseMessagingSenderId = 'YOUR_MESSAGING_SENDER_ID';
+  static const String firebaseStorageBucket = 'YOUR_FIREBASE_STORAGE_BUCKET';
+
+  // Supabase Configuration (Alternative option)
   static const String supabaseUrl = 'https://YOUR_PROJECT_ID.supabase.co';
   static const String supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY';
 
@@ -10,5 +19,5 @@ class AppConstants {
   static const String localFrontendUrl = 'http://192.168.0.101:5173';
 
   // App Strings
-  static const String appName = 'RouteWise Delivery';
+  static const String appName = 'RouteWise';
 }

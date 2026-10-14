@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -12,6 +13,18 @@ class DeliveryService {
 
   SupabaseClient? _supabase;
   bool _useSupabase = false;
+
+  FirebaseFirestore? _firestore;
+  bool _useFirebase = false;
+
+  void initFirebase() {
+    try {
+      _firestore = FirebaseFirestore.instance;
+      _useFirebase = true;
+    } catch (e) {
+      debugPrint('Firestore init error: $e');
+    }
+  }
 
   void initSupabase() {
     try {
@@ -42,7 +55,17 @@ class DeliveryService {
       // Fallback
     }
 
-    // 2. Try Supabase
+    // 2. Try Firestore
+    if (_useFirebase && _firestore != null) {
+      try {
+        final snap = await _firestore!.collection('restaurants').get();
+        if (snap.docs.isNotEmpty) {
+          return snap.docs.map((d) => Restaurant.fromJson({'id': d.id, ...d.data()})).toList();
+        }
+      } catch (_) {}
+    }
+
+    // 3. Try Supabase
     if (_useSupabase && _supabase != null) {
       try {
         final data = await _supabase!.from('restaurants').select();
@@ -196,7 +219,24 @@ class DeliveryService {
       );
     } catch (_) {}
 
-    // 2. Broadcast via Supabase Realtime
+    // 2. Broadcast via Firebase Firestore
+    if (_useFirebase && _firestore != null) {
+      try {
+        await _firestore!.collection('driver_locations').doc(orderId).set({
+          'order_id': orderId,
+          'latitude': latitude,
+          'longitude': longitude,
+          'heading': heading,
+          'speed': speed,
+          'is_real_device': true,
+          'updated_at': FieldValue.serverTimestamp(),
+        }, SetOptions(merge: true));
+      } catch (e) {
+        debugPrint('Firestore GPS sync error: $e');
+      }
+    }
+
+    // 3. Broadcast via Supabase Realtime
     if (_useSupabase && _supabase != null) {
       try {
         await _supabase!.from('driver_locations').upsert({
@@ -214,16 +254,48 @@ class DeliveryService {
 
   // Update Order Status (e.g. from Kitchen or Driver)
   Future<bool> updateOrderStatus(String orderId, String status) async {
+    // 1. Try Local PC Dashboard API
     try {
-      final res = await http.post(
+      await http.post(
         Uri.parse('${AppConstants.localBackendApi}/food/orders/$orderId/status'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({'status': status}),
       );
-      return res.statusCode == 200;
-    } catch (_) {
-      return true;
+    } catch (_) {}
+
+    // 2. Try Firebase Firestore
+    if (_useFirebase && _firestore != null) {
+      try {
+        await _firestore!.collection('orders').doc(orderId).update({
+          'status': status,
+          'updated_at': FieldValue.serverTimestamp(),
+        });
+      } catch (_) {}
     }
+    return true;
+  }
+
+  // Stream live Driver GPS from Firebase Firestore
+  Stream<DriverLocation>? streamDriverGps(String orderId) {
+    if (_useFirebase && _firestore != null) {
+      return _firestore!
+          .collection('driver_locations')
+          .doc(orderId)
+          .snapshots()
+          .where((snap) => snap.exists && snap.data() != null)
+          .map((snap) {
+        final d = snap.data()!;
+        return DriverLocation(
+          latitude: (d['latitude'] as num).toDouble(),
+          longitude: (d['longitude'] as num).toDouble(),
+          heading: (d['heading'] as num?)?.toDouble() ?? 0.0,
+          speedKmh: (d['speed'] as num?)?.toDouble() ?? 0.0,
+          isRealDevice: true,
+          updatedAt: DateTime.now(),
+        );
+      });
+    }
+    return null;
   }
 
   // Verify OTP (Driver Doorstep Delivery)
