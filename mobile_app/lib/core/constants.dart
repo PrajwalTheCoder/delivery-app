@@ -13,6 +13,9 @@ class AppConstants {
   static const String supabaseUrl = 'https://YOUR_PROJECT_ID.supabase.co';
   static const String supabaseAnonKey = 'YOUR_SUPABASE_ANON_KEY';
 
+  // Cloud Public Tunnel API (Accessible from anywhere on 4G / 5G / cellular mobile data)
+  static const String cloudBackendApi = 'https://routewise-prajwal.loca.lt/api/v1';
+
   // PC Dashboard Backend API (Local LAN IP for cross-device synchronization)
   // Ensure your mobile phone and PC are on the same Wi-Fi network or connected via USB ADB
   static const String localBackendApi = 'http://192.168.0.101:5050/api/v1';

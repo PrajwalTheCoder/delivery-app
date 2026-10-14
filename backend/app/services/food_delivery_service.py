@@ -541,32 +541,39 @@ class FoodDeliveryService:
         driver_lat = restaurant["latitude"] + random.uniform(-0.004, 0.004)
         driver_lon = restaurant["longitude"] + random.uniform(-0.004, 0.004)
 
-        # Compute road route via OSRM from Restaurant to Customer
-        routing_service = RoutingService()
-        route_res = routing_service.get_route(
-            coordinates=[
-                (restaurant["latitude"], restaurant["longitude"]),
-                (customer_lat, customer_lon)
-            ],
-            overview="full"
-        )
+        # Use client-queried OSRM road geometry if provided, otherwise query server-side OSRM
+        client_geom = order_data.get("road_geometry")
+        if client_geom and isinstance(client_geom, list) and len(client_geom) >= 2:
+            geometry = client_geom
+        else:
+            routing_service = RoutingService()
+            route_res = routing_service.get_route(
+                coordinates=[
+                    (restaurant["latitude"], restaurant["longitude"]),
+                    (customer_lat, customer_lon)
+                ],
+                overview="full"
+            )
+            geometry = route_res.get("geometry_coordinates", [])
+            if not geometry:
+                # 5-step fallback
+                geometry = [
+                    [restaurant["latitude"], restaurant["longitude"]],
+                    [round((restaurant["latitude"] + customer_lat) / 2, 5), round((restaurant["longitude"] + customer_lon) / 2, 5)],
+                    [customer_lat, customer_lon]
+                ]
 
-        geometry = route_res.get("geometry_coordinates", [])
-        if not geometry:
-            # 5-step straight line fallback
-            geometry = [
-                [restaurant["latitude"], restaurant["longitude"]],
-                [round((restaurant["latitude"] + customer_lat) / 2, 5), round((restaurant["longitude"] + customer_lon) / 2, 5)],
-                [customer_lat, customer_lon]
-            ]
+        initial_status = str(order_data.get("status") or "placed")
+        is_real_mode = bool(order_data.get("is_real_mode", False))
 
         order = {
             "id": order_id,
             "created_at": time.strftime("%Y-%m-%d %H:%M:%S"),
-            "status": "placed",  # placed, preparing, ready_for_pickup, out_for_delivery, delivered
-            "status_title": "Order Confirmed!",
-            "status_message": f"{restaurant['name']} has received your order and started preparing.",
+            "status": initial_status,  # placed, preparing, ready_for_pickup, out_for_delivery, delivered
+            "status_title": order_data.get("status_title") or ("Rider On The Way" if initial_status == "out_for_delivery" else "Order Confirmed!"),
+            "status_message": order_data.get("status_message") or (f"Rider is en route with your food." if initial_status == "out_for_delivery" else f"{restaurant['name']} has received your order."),
             "delivery_otp": delivery_otp,
+            "is_real_mode": is_real_mode,
             "customer": {
                 "name": customer_name,
                 "phone": customer_phone,

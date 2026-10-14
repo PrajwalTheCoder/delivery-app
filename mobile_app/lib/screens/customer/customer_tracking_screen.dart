@@ -274,13 +274,19 @@ class _CustomerTrackingScreenState extends State<CustomerTrackingScreen>
         ),
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
           children: [
             Row(
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  'Order #${order.id}',
-                  style: const TextStyle(
-                      color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 14),
+                Flexible(
+                  child: Text(
+                    'Order #${order.id}',
+                    overflow: TextOverflow.ellipsis,
+                    maxLines: 1,
+                    style: const TextStyle(
+                        color: Colors.black87, fontWeight: FontWeight.bold, fontSize: 14),
+                  ),
                 ),
                 const SizedBox(width: 6),
                 Container(
@@ -306,6 +312,8 @@ class _CustomerTrackingScreenState extends State<CustomerTrackingScreen>
             ),
             Text(
               order.restaurantName,
+              overflow: TextOverflow.ellipsis,
+              maxLines: 1,
               style: TextStyle(color: Colors.grey.shade600, fontSize: 11),
             ),
           ],

@@ -102,21 +102,64 @@ class DeliveryService {
     final taxes = subtotal * 0.05;
     final grandTotal = subtotal + packagingFee + deliveryFee + taxes;
 
-    // Realistic road geometry
+    // Realistic road geometry (Queried from OSRM driving engine)
     List<List<double>> geom = [];
+    int calculatedEtaMins = 18;
+
     if (!realMode) {
       geom = List.from(khargharDemoRoadGeometry);
     } else {
-      // Generate 8 smooth intermediate waypoints between restaurant and customer
-      const steps = 8;
-      for (int i = 0; i <= steps; i++) {
-        final frac = i / steps;
-        // Add subtle road curve deviation
-        final curve = sin(frac * pi) * 0.0006;
-        final lat = restaurant.latitude + (customerLat - restaurant.latitude) * frac + curve;
-        final lon = restaurant.longitude + (customerLon - restaurant.longitude) * frac + (curve * 0.7);
-        geom.add([lat, lon]);
+      try {
+        final osrmUrl = 'https://router.project-osrm.org/route/v1/driving/'
+            '${restaurant.longitude},${restaurant.latitude};'
+            '$customerLon,$customerLat'
+            '?overview=full&geometries=geojson';
+
+        final res = await http.get(
+          Uri.parse(osrmUrl),
+          headers: {'User-Agent': 'RouteWiseMobile/1.0'},
+        ).timeout(const Duration(seconds: 4));
+
+        if (res.statusCode == 200) {
+          final data = jsonDecode(res.body);
+          if (data['routes'] is List && (data['routes'] as List).isNotEmpty) {
+            final route = data['routes'][0];
+            final durationSec = (route['duration'] as num).toDouble();
+            calculatedEtaMins = max(6, (durationSec / 60).round() + 5);
+
+            final coords = route['geometry']['coordinates'] as List;
+            // OSRM coordinates are [lon, lat], convert to [lat, lon]
+            geom = coords.map<List<double>>((pt) => [
+              (pt[1] as num).toDouble(),
+              (pt[0] as num).toDouble(),
+            ]).toList();
+          }
+        }
+      } catch (e) {
+        debugPrint('OSRM road route fetch fallback: $e');
       }
+
+      // If offline or network error, fallback to smooth interpolated points
+      if (geom.isEmpty) {
+        const steps = 14;
+        for (int i = 0; i <= steps; i++) {
+          final frac = i / steps;
+          final lat = restaurant.latitude + (customerLat - restaurant.latitude) * frac;
+          final lon = restaurant.longitude + (customerLon - restaurant.longitude) * frac;
+          geom.add([lat, lon]);
+        }
+      }
+    }
+
+    double initialHeading = 45.0;
+    if (geom.length >= 2) {
+      final p0 = geom[0];
+      final p1 = geom[1];
+      final dLon = (p1[1] - p0[1]) * (pi / 180);
+      final y = sin(dLon) * cos(p1[0] * (pi / 180));
+      final x = cos(p0[0] * (pi / 180)) * sin(p1[0] * (pi / 180)) -
+          sin(p0[0] * (pi / 180)) * cos(p1[0] * (pi / 180)) * cos(dLon);
+      initialHeading = (atan2(y, x) * 180 / pi + 360) % 360;
     }
 
     final newOrder = FoodOrder(
@@ -137,15 +180,15 @@ class DeliveryService {
       driverPhone: '+91 98201 44821',
       driverVehicle: 'Hero Splendor (MH-46-AZ-8921)',
       driverLocation: DriverLocation(
-        latitude: restaurant.latitude,
-        longitude: restaurant.longitude,
-        heading: 45.0,
+        latitude: geom.isNotEmpty ? geom[0][0] : restaurant.latitude,
+        longitude: geom.isNotEmpty ? geom[0][1] : restaurant.longitude,
+        heading: initialHeading,
         speedKmh: 24.0,
         isRealDevice: realMode,
         updatedAt: DateTime.now(),
       ),
       roadGeometry: geom,
-      estimatedDeliveryMins: 16,
+      estimatedDeliveryMins: calculatedEtaMins,
       items: orderItems,
       isRealMode: realMode,
     );
@@ -164,12 +207,14 @@ class DeliveryService {
       'delivery_otp': newOrder.deliveryOtp,
       'items': orderItems,
       'is_real_mode': realMode,
+      'road_geometry': geom,
+      'estimated_delivery_mins': calculatedEtaMins,
     };
-    for (final base in [AppConstants.localLoopbackApi, AppConstants.localBackendApi]) {
+    for (final base in _apiBases) {
       try {
         final res = await http.post(
           Uri.parse('$base/food/orders'),
-          headers: {'Content-Type': 'application/json'},
+          headers: _apiHeaders,
           body: jsonEncode(backendPayload),
         ).timeout(const Duration(milliseconds: 1500));
         if (res.statusCode == 200 || res.statusCode == 201) break;
@@ -186,11 +231,17 @@ class DeliveryService {
           'customer_lat': customerLat,
           'customer_lon': customerLon,
           'restaurant_name': restaurant.name,
+          'restaurant_lat': restaurant.latitude,
+          'restaurant_lon': restaurant.longitude,
           'status': 'out_for_delivery',
+          'status_title': newOrder.statusTitle,
+          'status_message': newOrder.statusMessage,
           'otp': newOrder.deliveryOtp,
           'total_amount': grandTotal,
           'items': orderItems,
           'is_real_mode': realMode,
+          'road_geometry': geom,
+          'estimated_delivery_mins': calculatedEtaMins,
           'created_at': FieldValue.serverTimestamp(),
         });
       } catch (_) {}
@@ -306,19 +357,26 @@ class DeliveryService {
     ),
   ];
 
-  // Candidate local backend API roots
+  // Candidate backend API roots (Public Cloud Tunnel, USB ADB loopback, LAN IP)
   static const List<String> _apiBases = [
+    AppConstants.cloudBackendApi,
     AppConstants.localLoopbackApi,
     AppConstants.localBackendApi,
   ];
 
+  static const Map<String, String> _apiHeaders = {
+    'Content-Type': 'application/json',
+    'Bypass-Tunnel-Reminder': 'true',
+    'User-Agent': 'RouteWiseMobile/1.0',
+  };
+
   // Fetch real restaurants
   Future<List<Restaurant>> getRestaurants() async {
-    // 1. Try Local PC Dashboard API with snappy timeout
+    // 1. Try backend APIs with snappy timeout
     for (final base in _apiBases) {
       try {
         final response = await http
-            .get(Uri.parse('$base/food/restaurants'))
+            .get(Uri.parse('$base/food/restaurants'), headers: _apiHeaders)
             .timeout(const Duration(milliseconds: 1500));
 
         if (response.statusCode == 200) {
@@ -366,16 +424,50 @@ class DeliveryService {
             ? '$base/food/orders/$idParam/track'
             : '$base/food/orders';
 
-        final response = await http.get(Uri.parse(url)).timeout(const Duration(milliseconds: 1500));
+        final response = await http
+            .get(Uri.parse(url), headers: _apiHeaders)
+            .timeout(const Duration(milliseconds: 1500));
         if (response.statusCode == 200) {
           final data = jsonDecode(response.body);
           if (idParam.isNotEmpty) {
-            return FoodOrder.fromJson(data);
+            final order = FoodOrder.fromJson(data);
+            _activeOrder = order;
+            return order;
           } else if (data['orders'] is List && (data['orders'] as List).isNotEmpty) {
-            return FoodOrder.fromJson((data['orders'] as List).first);
+            final order = FoodOrder.fromJson((data['orders'] as List).first);
+            _activeOrder = order;
+            return order;
           }
         }
       } catch (_) {}
+    }
+
+    // 1.5 Try Firebase Firestore
+    if (_useFirebase && _firestore != null) {
+      try {
+        if (idParam.isNotEmpty) {
+          final snap = await _firestore!.collection('orders').doc(idParam).get();
+          if (snap.exists && snap.data() != null) {
+            final order = FoodOrder.fromJson({'id': snap.id, ...snap.data()!});
+            _activeOrder = order;
+            return order;
+          }
+        } else {
+          final snap = await _firestore!
+              .collection('orders')
+              .orderBy('created_at', descending: true)
+              .limit(1)
+              .get();
+          if (snap.docs.isNotEmpty) {
+            final doc = snap.docs.first;
+            final order = FoodOrder.fromJson({'id': doc.id, ...doc.data()});
+            _activeOrder = order;
+            return order;
+          }
+        }
+      } catch (e) {
+        debugPrint('Firestore getActiveOrder note: $e');
+      }
     }
 
     // 2. Default Demo Order (Kharghar Route with high-precision waypoints)
@@ -445,7 +537,7 @@ class DeliveryService {
       try {
         final res = await http.post(
           Uri.parse('$base/food/orders/$orderId/driver-location'),
-          headers: {'Content-Type': 'application/json'},
+          headers: _apiHeaders,
           body: jsonEncode({
             'latitude': latitude,
             'longitude': longitude,
@@ -524,7 +616,7 @@ class DeliveryService {
       try {
         await http.post(
           Uri.parse('$base/food/orders/$orderId/status'),
-          headers: {'Content-Type': 'application/json'},
+          headers: _apiHeaders,
           body: jsonEncode({'status': status}),
         ).timeout(const Duration(milliseconds: 1500));
         break;
@@ -588,7 +680,7 @@ class DeliveryService {
           try {
             await http.post(
               Uri.parse('$base/food/orders/${_activeOrder!.id}/verify-otp'),
-              headers: {'Content-Type': 'application/json'},
+              headers: _apiHeaders,
               body: jsonEncode({'otp': cleanOtp}),
             ).timeout(const Duration(milliseconds: 1500));
             break;
@@ -614,7 +706,7 @@ class DeliveryService {
       try {
         final res = await http.post(
           Uri.parse('$base/food/orders/$orderId/verify-otp'),
-          headers: {'Content-Type': 'application/json'},
+          headers: _apiHeaders,
           body: jsonEncode({'otp': cleanOtp}),
         ).timeout(const Duration(milliseconds: 1500));
         if (res.statusCode == 200) {

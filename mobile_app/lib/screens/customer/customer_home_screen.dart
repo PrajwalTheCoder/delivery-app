@@ -233,6 +233,32 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                     },
                   ),
                 ),
+                if (_cart.isNotEmpty)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12),
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: const Color(0xFFFC8019),
+                        padding: const EdgeInsets.symmetric(vertical: 14),
+                        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+                      ),
+                      onPressed: () {
+                        Navigator.of(ctx).pop();
+                        _showCheckoutSheet();
+                      },
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.shopping_bag_outlined, color: Colors.white),
+                          const SizedBox(width: 8),
+                          Text(
+                            'View Cart & Checkout ( items) ➔',
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
               ],
             ),
           );
@@ -368,9 +394,12 @@ class _CustomerHomeScreenState extends State<CustomerHomeScreen> {
                                   children: [
                                     Row(
                                       children: [
-                                        const Text(
-                                          '⚡ Real GPS Hardware Mode',
-                                          style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                        const Flexible(
+                                          child: Text(
+                                            '\u26a1 Real GPS Mode',
+                                            overflow: TextOverflow.ellipsis,
+                                            style: TextStyle(fontWeight: FontWeight.bold, fontSize: 13),
+                                          ),
                                         ),
                                         const SizedBox(width: 6),
                                         Container(
